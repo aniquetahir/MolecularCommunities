@@ -3,3 +3,4 @@ pandas
 tqdm
 gensim
 node2vec
+pyspark
