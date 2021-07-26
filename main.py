@@ -15,7 +15,7 @@ from gensim.models import Word2Vec
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 sc: SparkContext = SparkContext.getOrCreate(SparkConf()) #.setMaster('local[30]'))
-ss: SparkSession = SparkSession.builder.config('spark.driver.memory', '40g').getOrCreate()
+ss: SparkSession = SparkSession.builder.config('spark.driver.memory', '45g').config('spark.driver.maxResultSize', '30G').getOrCreate()
 
 N2V_P = 1
 N2V_Q = 1
@@ -24,7 +24,7 @@ N2V_WALK_LENGTH = 80
 N2V_DIM = 128
 N2V_WINDOW_SIZE = 10
 N2V_ITER = 1
-N2V_WORKERS = 4
+N2V_WORKERS = 10 
 NODE_LIMIT = -1
 COMMUNITY_LIMIT = 5000
 
@@ -46,7 +46,7 @@ def filter_edges(edges, include_list):
     # print('Creating edges RDD... ')
 
     print('Creating dataframe for edges')
-    edge_head = 10000000
+    edge_head = 5000000
     print(f'edge head: {edge_head}')
     ss.createDataFrame(edges.head(edge_head)).createOrReplaceTempView('edges')
     ss.createDataFrame(pd.DataFrame(include_list, columns=['node_id'])).createOrReplaceTempView('includes')
@@ -86,6 +86,7 @@ def get_top5000_nx_graph(graph_path, community_path):
     G.add_edges_from(edges)
     print('Removing extra nodes...')
     removal_nodes = [n for n in G.nodes if n not in cty_nodes]
+    print(f'removing {len(removal_nodes)} nodes')
     G.remove_nodes_from(removal_nodes)
     return G
 
@@ -126,15 +127,17 @@ def create_n2v_embeddings(graph_location, save_path, community_path):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print('Starting...')
+    print('Processing Live Journal...') 
     create_n2v_embeddings(
         os.path.join(DATA_FOLDER, 'datasets/livejournal/com-lj.ungraph.txt'),
         'lj.n2v.emb',
         os.path.join(DATA_FOLDER, 'datasets/livejournal/com-lj.top5000.cmty.txt'))
-
+    print('Processing Orkut...')
     create_n2v_embeddings(
         os.path.join(DATA_FOLDER, 'datasets/orkut/com-orkut.ungraph.txt'),
         'orkut.n2v.emb',
         os.path.join(DATA_FOLDER, 'datasets/orkut/com-orkut.top5000.cmty.txt'))
+    print('Processing Friendster...')
     create_n2v_embeddings(
         os.path.join(DATA_FOLDER, 'datasets/friendster/com-friendster.ungraph.txt'),
         'friendster.n2v.emb',
