@@ -13,8 +13,8 @@ from gensim.models import Word2Vec
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
-sc: SparkContext = SparkContext.getOrCreate(SparkConf().setMaster('local[*]'))
-ss: SparkSession = SparkSession.builder.getOrCreate()
+sc: SparkContext = SparkContext.getOrCreate(SparkConf()) #.setMaster('local[30]'))
+ss: SparkSession = SparkSession.builder.config('spark.driver.memory', '40g').getOrCreate()
 
 N2V_P = 1
 N2V_Q = 1
@@ -25,7 +25,7 @@ N2V_WINDOW_SIZE = 10
 N2V_ITER = 1
 N2V_WORKERS = 4
 NODE_LIMIT = -1
-COMMUNITY_LIMIT = 500
+COMMUNITY_LIMIT = 5000
 
 
 def print_hi(name):
@@ -37,12 +37,18 @@ def read_ungraph(filepath: str):
     return table
 
 def filter_edges(edges, include_list):
-    print('Creating edges RDD... ')
-    rdd_edges = ss.createDataFrame(edges).rdd.map(list)
+    # print(f'num includes: {len(include_list)}')
+    # print(include_list[:100])
+    # print('Creating edges RDD... ')
+    rdd_edges = ss.createDataFrame(edges.head(10000000)).rdd.map(list)
     print('Spark filtering... ')
+    # sample_edges = rdd_edges.map(lambda x: [x[0], x[1]])
+    # print(sample_edges.collect()[:10])
+    # exit()
     rdd_edges = rdd_edges.filter(lambda x: x[0] in include_list and x[1] in include_list)
     filtered_edges = rdd_edges.collect()
     print(f'Filtered to {len(filtered_edges)} edges')
+    # exit()
     # filtered_edges = [(i, j) for i, j in tqdm(edges) if i in include_list and j in include_list]
     return filtered_edges
 
@@ -99,9 +105,9 @@ def create_n2v_embeddings(graph_location, save_path, community_path):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print('Starting...')
-    create_n2v_embeddings('../../datasets/livejournal/com-lj.ungraph.txt', 'lj.n2v.emb', '../../datasets/livejournal/com-lj.top5000.cmty.txt')
-    create_n2v_embeddings('../../datasets/orkut/com-orkut.ungraph.txt', 'orkut.n2v.emb', '../../datasets/orkut/com-orkut.top5000.cmty.txt')
-    create_n2v_embeddings('../../datasets/friendster/com-friendster.ungraph.txt', 'friendster.n2v.emb', '../../datasets/friendster/com-friendster.top5000.cmty.txt')
+    create_n2v_embeddings('datasets/livejournal/com-lj.ungraph.txt', 'lj.n2v.emb', 'datasets/livejournal/com-lj.top5000.cmty.txt')
+    create_n2v_embeddings('datasets/orkut/com-orkut.ungraph.txt', 'orkut.n2v.emb', 'datasets/orkut/com-orkut.top5000.cmty.txt')
+    create_n2v_embeddings('datasets/friendster/com-friendster.ungraph.txt', 'friendster.n2v.emb', 'datasets/friendster/com-friendster.top5000.cmty.txt')
     # communities = read_communities('datasets/livejournal/com-lj.top5000.cmty.txt')
     # edges = read_ungraph('datasets/livejournal/com-lj.ungraph.txt')
     # G = nx.Graph()
