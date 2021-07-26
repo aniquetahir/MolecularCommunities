@@ -15,7 +15,7 @@ from gensim.models import Word2Vec
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 sc: SparkContext = SparkContext.getOrCreate(SparkConf()) #.setMaster('local[30]'))
-ss: SparkSession = SparkSession.builder.config('spark.driver.memory', '45g').config('spark.driver.maxResultSize', '30G').getOrCreate()
+ss: SparkSession = SparkSession.builder.config('spark.driver.memory', '45g').getOrCreate()
 
 N2V_P = 1
 N2V_Q = 1
@@ -24,12 +24,12 @@ N2V_WALK_LENGTH = 80
 N2V_DIM = 128
 N2V_WINDOW_SIZE = 10
 N2V_ITER = 1
-N2V_WORKERS = 10 
+N2V_WORKERS = 4
 NODE_LIMIT = -1
 COMMUNITY_LIMIT = 5000
 
 
-DATA_FOLDER = './'
+DATA_FOLDER = '../../'
 
 
 def print_hi(name):
@@ -46,9 +46,9 @@ def filter_edges(edges, include_list):
     # print('Creating edges RDD... ')
 
     print('Creating dataframe for edges')
-    edge_head = 5000000
+    edge_head = 1000000
     print(f'edge head: {edge_head}')
-    ss.createDataFrame(edges.head(edge_head)).createOrReplaceTempView('edges')
+    ss.createDataFrame(edges.sample(edge_head)).createOrReplaceTempView('edges')
     ss.createDataFrame(pd.DataFrame(include_list, columns=['node_id'])).createOrReplaceTempView('includes')
 
     print('Generating and executing filter plan...')
@@ -85,9 +85,9 @@ def get_top5000_nx_graph(graph_path, community_path):
     print('Adding edges to nx graph...')
     G.add_edges_from(edges)
     print('Removing extra nodes...')
-    removal_nodes = [n for n in G.nodes if n not in cty_nodes]
-    print(f'removing {len(removal_nodes)} nodes')
-    G.remove_nodes_from(removal_nodes)
+    # removal_nodes = [n for n in G.nodes if n not in cty_nodes]
+    # print(f'removing {len(removal_nodes)} nodes')
+    # G.remove_nodes_from(removal_nodes)
     return G
 
 
