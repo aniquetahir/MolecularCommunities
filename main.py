@@ -8,6 +8,7 @@ import networkx as nx
 from node2vec import Node2Vec
 from pyspark import SparkConf, SparkContext
 from pyspark.sql import SparkSession
+import os
 
 from gensim.models import Word2Vec
 # Press Shift+F10 to execute it or replace it with your code.
@@ -28,6 +29,9 @@ NODE_LIMIT = -1
 COMMUNITY_LIMIT = 5000
 
 
+DATA_FOLDER = './'
+
+
 def print_hi(name):
     print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
 
@@ -40,14 +44,31 @@ def filter_edges(edges, include_list):
     # print(f'num includes: {len(include_list)}')
     # print(include_list[:100])
     # print('Creating edges RDD... ')
-    rdd_edges = ss.createDataFrame(edges.head(10000000)).rdd.map(list)
-    print('Spark filtering... ')
+
+    print('Creating dataframe for edges')
+    edge_head = 10000000
+    print(f'edge head: {edge_head}')
+    ss.createDataFrame(edges.head(edge_head)).createOrReplaceTempView('edges')
+    ss.createDataFrame(pd.DataFrame(include_list, columns=['node_id'])).createOrReplaceTempView('includes')
+
+    print('Generating and executing filter plan...')
+    df_filtered = ss.sql('select `from`, `to` from '
+           'edges inner join includes as i1 '
+           'on edges.from=i1.node_id '
+           'inner join includes as i2 '
+           'on edges.to=i2.node_id')
+    # df_filtered.show(10)
+    filtered_edges = df_filtered.rdd.map(tuple).collect()
+    filtered_edges = list(set(filtered_edges))
+
+    # rdd_edges = ss.createDataFrame(edges.head(10000000)).rdd.map(list)
+    # print('Spark filtering... ')
     # sample_edges = rdd_edges.map(lambda x: [x[0], x[1]])
     # print(sample_edges.collect()[:10])
     # exit()
-    rdd_edges = rdd_edges.filter(lambda x: x[0] in include_list and x[1] in include_list)
-    filtered_edges = rdd_edges.collect()
-    print(f'Filtered to {len(filtered_edges)} edges')
+    # rdd_edges = rdd_edges.filter(lambda x: x[0] in include_list and x[1] in include_list)
+    # filtered_edges = rdd_edges.collect()
+    # print(f'Filtered to {len(filtered_edges)} edges')
     # exit()
     # filtered_edges = [(i, j) for i, j in tqdm(edges) if i in include_list and j in include_list]
     return filtered_edges
@@ -105,9 +126,19 @@ def create_n2v_embeddings(graph_location, save_path, community_path):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print('Starting...')
-    create_n2v_embeddings('datasets/livejournal/com-lj.ungraph.txt', 'lj.n2v.emb', 'datasets/livejournal/com-lj.top5000.cmty.txt')
-    create_n2v_embeddings('datasets/orkut/com-orkut.ungraph.txt', 'orkut.n2v.emb', 'datasets/orkut/com-orkut.top5000.cmty.txt')
-    create_n2v_embeddings('datasets/friendster/com-friendster.ungraph.txt', 'friendster.n2v.emb', 'datasets/friendster/com-friendster.top5000.cmty.txt')
+    create_n2v_embeddings(
+        os.path.join(DATA_FOLDER, 'datasets/livejournal/com-lj.ungraph.txt'),
+        'lj.n2v.emb',
+        os.path.join(DATA_FOLDER, 'datasets/livejournal/com-lj.top5000.cmty.txt'))
+
+    create_n2v_embeddings(
+        os.path.join(DATA_FOLDER, 'datasets/orkut/com-orkut.ungraph.txt'),
+        'orkut.n2v.emb',
+        os.path.join(DATA_FOLDER, 'datasets/orkut/com-orkut.top5000.cmty.txt'))
+    create_n2v_embeddings(
+        os.path.join(DATA_FOLDER, 'datasets/friendster/com-friendster.ungraph.txt'),
+        'friendster.n2v.emb',
+        os.path.join(DATA_FOLDER, 'datasets/friendster/com-friendster.top5000.cmty.txt'))
     # communities = read_communities('datasets/livejournal/com-lj.top5000.cmty.txt')
     # edges = read_ungraph('datasets/livejournal/com-lj.ungraph.txt')
     # G = nx.Graph()
