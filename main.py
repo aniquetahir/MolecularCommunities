@@ -21,15 +21,15 @@ N2V_P = 1
 N2V_Q = 1
 N2V_NUM_WALKS = 10
 N2V_WALK_LENGTH = 80
-N2V_DIM = 128
+N2V_DIM = 3
 N2V_WINDOW_SIZE = 10
 N2V_ITER = 1
-N2V_WORKERS = 4
+N2V_WORKERS = 10
 NODE_LIMIT = -1
 COMMUNITY_LIMIT = 5000
 
 
-DATA_FOLDER = '../../'
+DATA_FOLDER = './'
 
 
 def print_hi(name):
@@ -46,7 +46,7 @@ def filter_edges(edges, include_list):
     # print('Creating edges RDD... ')
 
     print('Creating dataframe for edges')
-    edge_head = 1000000
+    edge_head = 3000000
     print(f'edge head: {edge_head}')
     ss.createDataFrame(edges.sample(edge_head)).createOrReplaceTempView('edges')
     ss.createDataFrame(pd.DataFrame(include_list, columns=['node_id'])).createOrReplaceTempView('includes')
@@ -100,7 +100,14 @@ def read_communities(filepath: str):
             cty = [int(x) for x in cty]
             communities.append(cty)
     return communities
-            
+
+
+def generate_embeddings_n2v(G):
+    n2v = Node2Vec(G, dimensions=N2V_DIM, walk_length=N2V_WALK_LENGTH, num_walks=N2V_NUM_WALKS, workers=N2V_WORKERS)
+    model = n2v.fit(window=N2V_WINDOW_SIZE, min_count=0, batch_words=4)
+    return model
+
+
 def create_n2v_embeddings(graph_location, save_path, community_path):
     #communities = read_communities(cmty_location)
     # edges = read_ungraph(graph_location)
