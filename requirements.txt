@@ -5,3 +5,5 @@ gensim
 node2vec
 pyspark
 scikit-learn
+stellargraph[demos]
+chardet
