@@ -73,6 +73,7 @@ if __name__ == "__main__":
     # print('YouTube')
     # n2v_embeddings('/dmml_pool/datasets/graph/youtube.mat', 'sc_youtube_walks.pkl', 'sc_flickr.emb')
 
+
     # DeepWalk
     dw_params = {
         'walk_length': 10,

@@ -1,0 +1,7 @@
+jax[cpu]
+git+https://www.github.com/google/jax-md
+networkx
+matplotlib
+numpy
+tqdm
+
