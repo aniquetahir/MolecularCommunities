@@ -16,6 +16,9 @@ import ge
 import pickle
 from gensim.models import Word2Vec
 
+BC_DATA_PATH = '/new-pool/datasets/blogcatalog.mat'
+FLICKR_DATA_PATH = ''
+YOUTUBE_DATA_PATH = ''
 
 def n2v_embeddings(path_to_mat, path_to_walks, emb_path, emb_dim=128):
     bc_mat = loadmat(path_to_mat)
@@ -51,12 +54,12 @@ def generic_embeddings(embedding_function, function_params, train_params, path_t
     if not os.path.exists(emb_path):
         mat = loadmat(path_to_mat)
         G = nx.from_scipy_sparse_matrix(mat['network'])
-        function_params['G'] = G
+        function_params['graph'] = G
         model = embedding_function(**function_params)
         model.train(**train_params)
         embeddings = model.get_embeddings()
         with open(emb_path, 'wb') as emb_file:
-            pickle.dump(emb_file)
+            pickle.dump(embeddings, emb_file)
 
 
 if __name__ == "__main__":
@@ -66,12 +69,33 @@ if __name__ == "__main__":
     # print('=' * 20)
     # print('Flickr')
     # n2v_embeddings('/dmml_pool/datasets/graph/flickr.mat', 'sc_flickr_walks.pkl', 'sc_flickr.emb')
-    print('=' * 20)
-    print('YouTube')
-    n2v_embeddings('/dmml_pool/datasets/graph/youtube.mat', 'sc_youtube_walks.pkl', 'sc_flickr.emb')
+    # print('=' * 20)
+    # print('YouTube')
+    # n2v_embeddings('/dmml_pool/datasets/graph/youtube.mat', 'sc_youtube_walks.pkl', 'sc_flickr.emb')
 
-    # generic_embeddings()
+    # DeepWalk
+    dw_params = {
+        'walk_length': 10,
+        'num_walks': 80,
+        'workers': 4
+    }
+    dw_train_params = {
+        'window_size': 5,
+        'iter': 3
+    }
+    generic_embeddings(ge.DeepWalk, dw_params, dw_train_params, BC_DATA_PATH, 'bc_deepwalk.emb')
 
+    # LINE
+    line_params = {
+        'embedding_size': 128,
+        'order': 'second'
+    }
+    line_train_params = {
+        'batch_size': 1024,
+        'epochs': 50,
+        'verbose': 2
+    }
+    generic_embeddings(ge.LINE, line_params, line_train_params, BC_DATA_PATH, 'bc_line_128.emb')
 
 
 

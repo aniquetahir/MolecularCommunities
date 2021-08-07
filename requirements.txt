@@ -7,3 +7,4 @@ pyspark
 scikit-learn
 stellargraph[demos]
 chardet
+fastdtw
