@@ -81,7 +81,7 @@ def plot_system(R, box_size, species=None, ms=20):
 
 
 class MolecularCommunities:
-    def __init__(self, key, G: nx.Graph, dim=2, box_size=1000, minimization_steps=5200):
+    def __init__(self, key, G: nx.Graph, dim=2, box_size=1000, minimization_steps=5200, pos: np.DeviceArray=None):
         """
         Initialize CMD for a graph
         :param key: jax prng key
@@ -93,7 +93,10 @@ class MolecularCommunities:
         self.key, self.split = random.split(key)
         self.dim = dim
         self.box_size = box_size
-        self.R = random.uniform(self.split, (G.number_of_nodes(), dim), minval=0, maxval=box_size, dtype=np.float64)
+        if pos is None:
+            self.R = random.uniform(self.split, (G.number_of_nodes(), dim), minval=0, maxval=box_size, dtype=np.float64)
+        else:
+            self.R = pos
         self.node_border_distance =  5 #@param {type:"number"}
         self.bond_border_distance = 3 #@param {type:"number"}
         self.bond_intensity = 20 #@param {type:"number"}

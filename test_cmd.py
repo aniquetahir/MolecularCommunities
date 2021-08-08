@@ -24,6 +24,7 @@ def get_multiembeddings(G, num_embeddings, num_steps=10000, skim=-1):
     all_embeddings = jnp.hstack(all_embeddings[:skim])
     return all_embeddings
 
+
 def get_minembeddings(G, num_embeddings, num_steps=10000):
     min_embedding = None
     min_energy = float('inf')
@@ -37,20 +38,23 @@ def get_minembeddings(G, num_embeddings, num_steps=10000):
     return min_embedding
 
 
-if __name__ == "__main__":
-    G = nx.karate_club_graph()
-    communities = greedy_modularity_communities(G)
-    multiembeddings = get_multiembeddings(G, 100, skim=10)
-    mds = MDS(2)
-    mds_embeddings = mds.fit_transform(np.array(multiembeddings))
-    # mds_embeddings = get_minembeddings(G, 100)
-    pos_md = dict(zip(range(len(mds_embeddings)), np.array(mds_embeddings)))
+def plot_graph(embeddings):
+    pos_md = dict(zip(range(len(embeddings)), np.array(embeddings)))
     nx.draw_networkx_nodes(G, pos_md, nodelist=communities[0], node_color='r')
     nx.draw_networkx_nodes(G, pos_md, nodelist=communities[1], node_color='g')
     nx.draw_networkx_nodes(G, pos_md, nodelist=communities[2], node_color='b')
     nx.draw_networkx_edges(G, pos_md)
     plt.show()
 
+
+if __name__ == "__main__":
+    G = nx.karate_club_graph()
+    communities = greedy_modularity_communities(G)
+    multiembeddings = get_multiembeddings(G, 100)
+    mds = MDS(2)
+    mds_embeddings = mds.fit_transform(np.array(multiembeddings))
+    # mds_embeddings = get_minembeddings(G, 100)
+    plot_graph(mds_embeddings)
 
     print('Testing Community MD')
 
