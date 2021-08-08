@@ -1,0 +1,1 @@
+from community_md.model import MolecularCommunities

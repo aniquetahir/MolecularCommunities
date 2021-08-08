@@ -42,24 +42,24 @@ def finalize_plot(shape=(1, 0.7)):
     plt.tight_layout()
 
 
-def calculate_bond_data(displacement_or_metric, R, dr_cutoff, species=None):
-    if (not (species is None)):
-        assert (False)
-
-    metric = space.map_product(space.canonicalize_displacement_or_metric(displacement))
-    dr = metric(R, R)
-
-    dr_include = np.triu(np.where(dr < dr_cutoff, 1, 0)) - np.eye(R.shape[0], dtype=np.int32)
-    index_list = np.dstack(np.meshgrid(np.arange(N), np.arange(N), indexing='ij'))
-
-    i_s = np.where(dr_include == 1, index_list[:, :, 0], -1).flatten()
-    j_s = np.where(dr_include == 1, index_list[:, :, 1], -1).flatten()
-    ij_s = np.transpose(np.array([i_s, j_s]))
-
-    bonds = ij_s[(ij_s != np.array([-1, -1]))[:, 1]]
-    lengths = dr.flatten()[(ij_s != np.array([-1, -1]))[:, 1]]
-
-    return bonds, lengths
+# def calculate_bond_data(displacement_or_metric, R, dr_cutoff, species=None):
+#     if (not (species is None)):
+#         assert (False)
+#
+#     metric = space.map_product(space.canonicalize_displacement_or_metric(displacement))
+#     dr = metric(R, R)
+#
+#     dr_include = np.triu(np.where(dr < dr_cutoff, 1, 0)) - np.eye(R.shape[0], dtype=np.int32)
+#     index_list = np.dstack(np.meshgrid(np.arange(N), np.arange(N), indexing='ij'))
+#
+#     i_s = np.where(dr_include == 1, index_list[:, :, 0], -1).flatten()
+#     j_s = np.where(dr_include == 1, index_list[:, :, 1], -1).flatten()
+#     ij_s = np.transpose(np.array([i_s, j_s))
+#
+#     bonds = ij_s[(ij_s != np.array([-1, -1]))[:, 1]]
+#     lengths = dr.flatten()[(ij_s != np.array([-1, -1]))[:, 1]]
+#
+#     return bonds, lengths
 
 
 def plot_system(R, box_size, species=None, ms=20):
@@ -82,10 +82,18 @@ def plot_system(R, box_size, species=None, ms=20):
 
 class MolecularCommunities:
     def __init__(self, key, G: nx.Graph, dim=2, box_size=1000, minimization_steps=5200):
+        """
+        Initialize CMD for a graph
+        :param key: jax prng key
+        :param G: networkx graph
+        :param dim: embedding dimensions
+        :param box_size: MD box
+        :param minimization_steps: epochs for MD simulation
+        """
         self.key, self.split = random.split(key)
         self.dim = dim
         self.box_size = box_size
-        self.R = random.uniform(self.split, G.number_of_nodes(), minval=0, maxval=box_size, dtype=np.float64)
+        self.R = random.uniform(self.split, (G.number_of_nodes(), dim), minval=0, maxval=box_size, dtype=np.float64)
         self.node_border_distance =  5 #@param {type:"number"}
         self.bond_border_distance = 3 #@param {type:"number"}
         self.bond_intensity = 20 #@param {type:"number"}
@@ -102,9 +110,9 @@ class MolecularCommunities:
         bond_en = self.get_bond_energy_fn(self.displacement, self.bonds)
         energy_fn, neighbor_fn = self.get_energy_fn(self.displacement, self.bonds, self.box_size, self.r_cutoff, self.dr_threshold)
         R_final, max_energy = self.run_minimization(bond_en, self.R, self.shift, num_steps=self.minimization_steps)
-        print(max_energy)
+        # print(max_energy)
         self.embeddings = R_final
-        return R_final
+        return R_final, max_energy
 
     def linear_energy(dr, **kwargs):
         U = dr * 2 - 20
@@ -119,7 +127,7 @@ class MolecularCommunities:
         # U = - intensity * np.log(dr/bond_border_distance)
         return np.array(U, dtype=dr.dtype)
 
-    def lj_energy(dr, d0=30, **kwargs):
+    def lj_energy(self, dr, d0=30, **kwargs):
         U = dr ** 2 + energy.lennard_jones(dr, sigma=d0)
         return np.array(U, dtype=dr.dtype)
 
@@ -129,7 +137,7 @@ class MolecularCommunities:
         return self.custom_morse(dr/stretch)
 
     def get_bond_energy_fn(self, displacement_or_metric, bonds, bond_type=None):
-        return smap.bond(self.log_energy,
+        return smap.bond(self.lj_energy,
                          space.canonicalize_displacement_or_metric(displacement_or_metric),
                          bonds
                          )
