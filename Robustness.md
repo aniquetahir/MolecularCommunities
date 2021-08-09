@@ -10,9 +10,9 @@ We tried the following general approach:
 There are various methods of applying ensemble learning for Molecular Communities. 
 We tried the following methods:
 - Naive ensembles
-  - Learn from an ensemble of $n$ embeddings
+  - Learn from an ensemble of `n` embeddings
 - Greedy ensemble
-  - Skim the top $k$ embeddings with minimum energy from a total of $n$
+  - Skim the top `k` embeddings with minimum energy from a total of `n`
 - Cumulative ensemble
   - Use the cumulative MDS embedding for the next iteration
 

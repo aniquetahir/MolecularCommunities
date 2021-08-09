@@ -9,19 +9,43 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
-def get_multiembeddings(G, num_embeddings, num_steps=10000, skim=-1):
+def get_cumulative_embeddings(G, num_embeddings, num_steps=10000, skim=-1, dim=2):
+    all_embeddings = []
+    all_energies = []
+    cumulative_embedding = None
+    for i in tqdm(range(num_embeddings)):
+        key = random.PRNGKey(i)
+        mc = MolecularCommunities(key, G, minimization_steps=num_steps, pos=cumulative_embedding, dim=dim)
+        md_embeddings, energy = mc.train()
+        all_embeddings.append(md_embeddings)
+        all_energies.append(energy)
+        skimmed_embeddings = sorted(zip(all_embeddings, all_energies), key=lambda x: x[1])
+        all_embeddings = [x[0] for x in skimmed_embeddings]
+        if skim == -1:
+            tmp_embeddings = jnp.hstack(all_embeddings)
+        else:
+            tmp_embeddings = jnp.hstack(all_embeddings[:skim])
+        mds = MDS(dim)
+        cumulative_embedding = mds.fit_transform(tmp_embeddings)
+        del mc
+        del tmp_embeddings
+        del skimmed_embeddings
+    return cumulative_embedding, all_embeddings
+
+
+def get_multiembeddings(G, num_embeddings, num_steps=10000, skim=-1, dim=2):
     all_embeddings = []
     all_energies = []
     for i in tqdm(range(num_embeddings)):
         key = random.PRNGKey(i)
-        mc = MolecularCommunities(key, G, minimization_steps=num_steps)
+        mc = MolecularCommunities(key, G, minimization_steps=num_steps, dim=dim)
         md_embeddings, energy = mc.train()
         all_embeddings.append(md_embeddings)
         all_energies.append(energy)
         del mc
     skimmed_embeddings = sorted(zip(all_embeddings, all_energies), key=lambda x: x[1])
     all_embeddings = [x[0] for x in skimmed_embeddings]
-    all_embeddings = jnp.hstack(all_embeddings[:skim])
+    all_embeddings = jnp.hstack(all_embeddings) if skim == -1 else jnp.hstack(all_embeddings[:skim])
     return all_embeddings
 
 
@@ -50,7 +74,8 @@ def plot_graph(embeddings):
 if __name__ == "__main__":
     G = nx.karate_club_graph()
     communities = greedy_modularity_communities(G)
-    multiembeddings = get_multiembeddings(G, 100)
+    multiembeddings, all_embeddings = get_cumulative_embeddings(G, 100, skim=20)
+
     mds = MDS(2)
     mds_embeddings = mds.fit_transform(np.array(multiembeddings))
     # mds_embeddings = get_minembeddings(G, 100)
