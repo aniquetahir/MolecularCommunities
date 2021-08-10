@@ -4,11 +4,16 @@ from typing import Dict
 from sklearn.manifold import MDS
 from sklearn.linear_model import LogisticRegression
 from itertools import combinations, product
+from test_cmd import get_multiembeddings, get_cumulative_embeddings
+import numpy as np
+from experiment import n2v_embeddings
 
-def evaluate_embedding(embedding, labels):
+
+def evaluate_embedding(embedding, oh_labels):
     # Apply log regression
     # Accuracy, F1, precision, recall
     # 10 fold validation
+    return embedding, oh_labels
     pass
 
 
@@ -29,16 +34,22 @@ def iter_params(params: Dict):
 
 
 if __name__ == "__main__":
-    param_whatever = {
-        'a': range(2, 5),
-        'b': range(20, 50, 10)
-    }
-    x = iter_params(param_whatever)
-    bc_mat = loadmat('/new-pool/datasets/blogcatalog.mat')
+    bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
     G = nx.from_scipy_sparse_matrix(bc_mat['network'])
     labels = bc_mat['group']
     # Get md embedding
+    m_embeddings = get_multiembeddings(G, 200, skim=30)
+    mds = MDS(3)
+    reduced_embedding = mds.fit(np.array(m_embeddings))
+    # Evaluate embedding
+    acc_md, prec_md, recall_md, f1_md = evaluate_embedding(reduced_embedding, labels)
 
-    # Apply Log regression
-    # Accuracy, F1, precision, recall
-    # 10 fold X validation
+    # Get n2v embedding
+    n2v_emb = n2v_embeddings('/dmml_pool/datasets/graph/blogcatalog.mat', 'sc_bc_walks.pkl', 'sc_bc.emb', emb_dim=3)
+    reduced_embedding = mds.fit(np.array(n2v_emb))
+    acc_n2v, prec_n2v, recall_n2v, f1_n2v = evaluate_embedding(reduced_embedding, labels)
+
+
+
+
+
