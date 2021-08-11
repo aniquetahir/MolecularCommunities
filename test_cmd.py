@@ -40,12 +40,13 @@ def get_multiembeddings(G, num_embeddings, num_steps=10000, skim=-1, dim=2):
         key = random.PRNGKey(i)
         mc = MolecularCommunities(key, G, minimization_steps=num_steps, dim=dim)
         md_embeddings, energy = mc.train()
-        all_embeddings.append(md_embeddings)
+        all_embeddings.append(np.array(md_embeddings))
         all_energies.append(energy)
+        del md_embeddings
         del mc
     skimmed_embeddings = sorted(zip(all_embeddings, all_energies), key=lambda x: x[1])
     all_embeddings = [x[0] for x in skimmed_embeddings]
-    all_embeddings = jnp.hstack(all_embeddings) if skim == -1 else jnp.hstack(all_embeddings[:skim])
+    all_embeddings = np.hstack(all_embeddings) if skim == -1 else jnp.hstack(all_embeddings[:skim])
     return all_embeddings
 
 
