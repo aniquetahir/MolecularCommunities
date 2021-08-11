@@ -46,7 +46,7 @@ def get_multiembeddings(G, num_embeddings, num_steps=10000, skim=-1, dim=2):
         del mc
     skimmed_embeddings = sorted(zip(all_embeddings, all_energies), key=lambda x: x[1])
     all_embeddings = [x[0] for x in skimmed_embeddings]
-    all_embeddings = np.hstack(all_embeddings) if skim == -1 else jnp.hstack(all_embeddings[:skim])
+    all_embeddings = np.hstack(all_embeddings) if skim == -1 else np.hstack(all_embeddings[:skim])
     return all_embeddings
 
 
