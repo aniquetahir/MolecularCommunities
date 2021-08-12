@@ -80,6 +80,32 @@ def plot_system(R, box_size, species=None, ms=20):
     finalize_plot((1, 1))
 
 
+def readjust_graph(G: nx.Graph):
+    nodes = list(G.nodes)
+    index_map = {}
+    reverse_map = {}
+    for i, x in enumerate(nodes):
+        index_map[i] = x
+        reverse_map[x] = i
+
+    new_edge_list = []
+    for a, b in G.edges:
+        new_edge_list.append((reverse_map[a], reverse_map[b]))
+    new_G = nx.Graph()
+    new_G.add_edges_from(new_edge_list)
+    return new_G, index_map
+
+
+def unindex_graph(G: nx.Graph, index_map):
+    nodes = list(G.nodes)
+    old_edges = []
+    for a, b in G.edges:
+        old_edges.append((index_map[a], index_map[b]))
+    old_G = nx.Graph()
+    old_G.add_edges_from(old_edges)
+    return old_G
+
+
 class MolecularCommunities:
     def __init__(self, key, G: nx.Graph, dim=2, box_size=1000, minimization_steps=5200, pos: np.DeviceArray=None):
         """
@@ -93,6 +119,8 @@ class MolecularCommunities:
         self.key, self.split = random.split(key)
         self.dim = dim
         self.box_size = box_size
+        self.G, self.G_reindex = readjust_graph(G)
+
         if pos is None:
             self.R = random.uniform(self.split, (G.number_of_nodes(), dim), minval=0, maxval=box_size, dtype=np.float64)
         else:
@@ -109,6 +137,41 @@ class MolecularCommunities:
         self.minimization_steps = minimization_steps
         self.embeddings = None
 
+    def transform(self, edge_list, iters=100):
+        current_nodes = list(self.G.nodes)
+        new_nodes = []
+        new_bonds = []
+        # Find nodes not present
+        for n1, n2 in edge_list:
+            contain_new_node = False
+            if n1 not in current_nodes:
+                new_nodes.append(n1)
+                contain_new_node = True
+            if n2 not in current_nodes:
+                new_nodes.append(n2)
+                contain_new_node = True
+            if contain_new_node:
+                new_bonds.append((n1, n2))
+        # Create random positions for new nodes
+        G_new = self.G.copy()
+        G_new.add_edges_from(edge_list)
+        embedding_list = []
+        for _ in range(iters):
+            self.key, self.split = random.split(self.key)
+            new_positions = random.uniform(self.split, (len(new_nodes), self.dim), minval=0, maxval=self.box_size, dtype=np.float64)
+            # TODO check the node numbers and positions in the embeddings.
+            # Recreate embeddings? Embedding to node map?
+            new_embeddings = np.vstack((self.embeddings, new_positions))
+            bond_en = self.get_bond_energy_fn(self.displacement, new_bonds)
+            calculated_embeddings, energy = self.run_minimization(bond_en, new_embeddings, self.shift, num_steps=self.minimization_steps)
+            embedding_list.append(onp.arrray(calculated_embeddings))
+            del calculated_embeddings
+
+        final_embedding = np.average(embedding_list, axis=0)
+        # get the new embeddings only
+        new_final_embeddings = final_embedding[len(new_nodes):]
+        return new_final_embeddings
+
     def train(self):
         bond_en = self.get_bond_energy_fn(self.displacement, self.bonds)
         energy_fn, neighbor_fn = self.get_energy_fn(self.displacement, self.bonds, self.box_size, self.r_cutoff, self.dr_threshold)
@@ -117,7 +180,7 @@ class MolecularCommunities:
         self.embeddings = R_final
         return R_final, max_energy
 
-    def linear_energy(dr, **kwargs):
+    def linear_energy(self, dr, **kwargs):
         U = dr * 2 - 20
         return np.array(U, dtype=dr.dtype)
 
@@ -164,7 +227,7 @@ class MolecularCommunities:
     def run_minimization(self, energy_fn, R_init, shift, num_steps=5000):
         dt_start = 0.001
         dt_max   = 0.004
-        init,apply=minimize.fire_descent(jit(energy_fn),shift,dt_start=dt_start,dt_max=dt_max)
+        init, apply=minimize.fire_descent(jit(energy_fn),shift,dt_start=dt_start,dt_max=dt_max)
         apply = jit(apply)
 
         @jit

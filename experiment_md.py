@@ -48,8 +48,3 @@ if __name__ == "__main__":
     n2v_emb = n2v_embeddings('/dmml_pool/datasets/graph/blogcatalog.mat', 'sc_bc_walks.pkl', 'sc_bc.emb', emb_dim=3)
     reduced_embedding = mds.fit(np.array(n2v_emb))
     acc_n2v, prec_n2v, recall_n2v, f1_n2v = evaluate_embedding(reduced_embedding, labels)
-
-
-
-
-
