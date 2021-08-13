@@ -10,6 +10,7 @@ import numpy as onp
 from jax import jit, grad, vmap, value_and_grad
 from jax import lax
 from jax import ops
+from typing import Dict
 
 from jax.config import config
 
@@ -80,13 +81,21 @@ def plot_system(R, box_size, species=None, ms=20):
     finalize_plot((1, 1))
 
 
-def readjust_graph(G: nx.Graph):
+def opposite_dict(d: Dict):
+    o = {}
+    for k, v in d.items():
+        o[v] = k
+    return o
+
+
+def readjust_graph(G: nx.Graph, suggestions={}):
     nodes = list(G.nodes)
-    index_map = {}
-    reverse_map = {}
+    index_map = suggestions
+    reverse_map = opposite_dict(suggestions)
     for i, x in enumerate(nodes):
-        index_map[i] = x
-        reverse_map[x] = i
+        if x not in reverse_map.keys():
+            index_map[i] = x
+            reverse_map[x] = i
 
     new_edge_list = []
     for a, b in G.edges:
@@ -128,7 +137,7 @@ class MolecularCommunities:
         self.node_border_distance =  5 #@param {type:"number"}
         self.bond_border_distance = 3 #@param {type:"number"}
         self.bond_intensity = 20 #@param {type:"number"}
-        self.custom_morse = partial(energy.morse ,sigma=1., epsilon=10., alpha=1.)
+        self.custom_morse = partial(energy.morse, sigma=1., epsilon=10., alpha=1.)
         self.displacement, self.shift = space.periodic(box_size)
 
         self.r_cutoff = box_size/2.
@@ -138,7 +147,10 @@ class MolecularCommunities:
         self.embeddings = None
 
     def transform(self, edge_list, iters=100):
-        current_nodes = list(self.G.nodes)
+        # Get original nodes
+        old_G = unindex_graph(self.G, self.G_reindex)
+        # keep track of new nodes
+        current_nodes = list(old_G)
         new_nodes = []
         new_bonds = []
         # Find nodes not present
@@ -152,6 +164,25 @@ class MolecularCommunities:
                 contain_new_node = True
             if contain_new_node:
                 new_bonds.append((n1, n2))
+        # add new nodes
+        old_G.add_edges_from(edge_list)
+        # remap
+        old_G, index_mapping = readjust_graph(old_G, suggestions=self.G_reindex)
+        # transform new nodes
+        embedding_list = []
+        for _ in range(iters):
+            self.key, self.split = random.split(self.key)
+            new_positions = random.uniform(self.split, (len(new_nodes), self.dim), minval=0, maxval=self.box_size, dtype=np.float64)
+            # TODO check the node numbers and positions in the embeddings.
+            # Recreate embeddings? Embedding to node map?
+            new_embeddings = np.vstack((self.embeddings, new_positions))
+            bond_en = self.get_bond_energy_fn(self.displacement, new_bonds)
+            calculated_embeddings, energy = self.run_minimization(bond_en, new_embeddings, self.shift, num_steps=self.minimization_steps)
+            embedding_list.append(onp.arrray(calculated_embeddings))
+            del calculated_embeddings
+        # filter new node embeddings
+
+
         # Create random positions for new nodes
         G_new = self.G.copy()
         G_new.add_edges_from(edge_list)
@@ -166,11 +197,13 @@ class MolecularCommunities:
             calculated_embeddings, energy = self.run_minimization(bond_en, new_embeddings, self.shift, num_steps=self.minimization_steps)
             embedding_list.append(onp.arrray(calculated_embeddings))
             del calculated_embeddings
-
         final_embedding = np.average(embedding_list, axis=0)
+        labeled_embeddings = {}
+        for i, emb in enumerate(final_embedding):
+            labeled_embeddings[index_mapping[i]] = emb
         # get the new embeddings only
-        new_final_embeddings = final_embedding[len(new_nodes):]
-        return new_final_embeddings
+        # new_final_embeddings = final_embedding[len(new_nodes):]
+        return labeled_embeddings
 
     def train(self):
         bond_en = self.get_bond_energy_fn(self.displacement, self.bonds)
