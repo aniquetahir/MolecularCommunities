@@ -1,4 +1,5 @@
 from community_md import MolecularCommunities
+from collections import defaultdict
 from sklearn.manifold import MDS
 import networkx as nx
 from networkx.algorithms.community.modularity_max import greedy_modularity_communities
@@ -63,11 +64,12 @@ def get_minembeddings(G, num_embeddings, num_steps=10000):
     return min_embedding
 
 
-def plot_graph(embeddings):
+def plot_graph(embeddings, communities):
     pos_md = dict(zip(range(len(embeddings)), np.array(embeddings)))
     nx.draw_networkx_nodes(G, pos_md, nodelist=communities[0], node_color='r')
     nx.draw_networkx_nodes(G, pos_md, nodelist=communities[1], node_color='g')
-    nx.draw_networkx_nodes(G, pos_md, nodelist=communities[2], node_color='b')
+    if len(communities)>2:
+        nx.draw_networkx_nodes(G, pos_md, nodelist=communities[2], node_color='b')
     nx.draw_networkx_edges(G, pos_md)
     plt.show()
 
@@ -75,12 +77,18 @@ def plot_graph(embeddings):
 if __name__ == "__main__":
     G = nx.karate_club_graph()
     communities = greedy_modularity_communities(G)
-    multiembeddings, all_embeddings = get_cumulative_embeddings(G, 100, skim=20)
+    gt_communities = defaultdict(list)
+    for k, v in G.nodes.data():
+        gt_communities[v['club']].append(k)
+
+    gt_communities = list(gt_communities.values())
+    multiembeddings = get_multiembeddings(G, 100, skim=50)
 
     mds = MDS(2)
     mds_embeddings = mds.fit_transform(np.array(multiembeddings))
     # mds_embeddings = get_minembeddings(G, 100)
-    plot_graph(mds_embeddings)
+    plot_graph(mds_embeddings, gt_communities)
+    plot_graph(mds_embeddings, communities)
 
     print('Testing Community MD')
 

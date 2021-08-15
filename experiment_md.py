@@ -1,3 +1,5 @@
+import math
+
 from scipy.io import loadmat
 import networkx as nx
 from typing import Dict
@@ -8,9 +10,25 @@ from test_cmd import get_multiembeddings, get_cumulative_embeddings
 import numpy as np
 from experiment import n2v_embeddings
 import pickle
+import random
 
 
-def evaluate_embedding(embedding, oh_labels):
+def get_partitions(arr, num_partitions):
+    partitions = []
+    size_fold = math.floor(len(arr)/num_partitions)
+    for i in range(0, len(arr), size_fold):
+        partitions.append(arr[i, i+size_fold])
+    return partitions
+
+
+def evaluate_embedding(embedding, oh_labels, folds=10):
+    embedding_and_labels = zip(embedding, oh_labels)
+    random.shuffle(embedding_and_labels)
+    size_fold = math.floor(len(embedding_and_labels)/folds)
+    partitions = []
+    for i in range(0, len(embedding_and_labels), size_fold):
+        partitions.append(embedding_and_labels[i:i+size_fold])
+        pass
     # Apply log regression
     # Accuracy, F1, precision, recall
     # 10 fold validation
