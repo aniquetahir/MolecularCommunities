@@ -1,5 +1,7 @@
 import math
 import unittest
+
+from sklearn import metrics
 from scipy.io import loadmat
 import networkx as nx
 from typing import Dict
@@ -39,8 +41,8 @@ def get_metrics(predictions, labels) -> (float, float, float, float):
     pass
 
 
-def evaluate_embedding(embedding, oh_labels, folds=10):
-    embedding_and_labels = list(zip(embedding, np.argmax(oh_labels, axis=1)))
+def evaluate_embedding(embedding, oh_labels, folds=10, sparse=True, average='micro'):
+    embedding_and_labels = list(zip(embedding, np.argmax(oh_labels, axis=1) if sparse else oh_labels))
     random.shuffle(embedding_and_labels)
     partitions = get_partitions(embedding_and_labels, folds)
     predictions = []
@@ -48,18 +50,21 @@ def evaluate_embedding(embedding, oh_labels, folds=10):
         test_fold = partitions[i]
         training_folds = [y for j, x in enumerate(partitions) if j != i for y in x]
         test_embeddings = np.vstack([x[0] for x in test_fold])
-        test_labels = np.hstack([x[1] for x in test_fold])
+        test_labels = np.array(np.hstack([x[1] for x in test_fold])).flatten()
         train_embeddings = np.vstack([x[0] for x in training_folds])
-        train_labels = np.hstack([x[1] for x in training_folds])
+        train_labels = np.array(np.hstack([x[1] for x in training_folds])).flatten()
         # Apply log regression
         log_model = LogisticRegression()
         log_model.fit(train_embeddings, train_labels)
         fold_preds = log_model.predict(test_embeddings)
         predictions.append((test_labels, fold_preds))
     # Accuracy, F1, precision, recall
+    test_label_sets = np.hstack([x[0] for x in predictions])
+    test_prediction_sets = np.hstack([x[1] for x in predictions])
+    precision, recall, fscore, support = metrics.precision_recall_fscore_support(test_label_sets, test_prediction_sets, average=average)
+    accuracy = metrics.accuracy_score(test_label_sets, test_prediction_sets)
     # 10 fold validation
-    return embedding, oh_labels
-    pass
+    return accuracy, precision, recall, fscore, support
 
 
 def iter_params(params: Dict):
@@ -79,20 +84,23 @@ def iter_params(params: Dict):
 
 
 if __name__ == "__main__":
-    bc_mat = loadmat('/new-pool/datasets/blogcatalog.mat')
+    bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
     G = nx.from_scipy_sparse_matrix(bc_mat['network'])
     labels = bc_mat['group']
     # Get md embedding
-    m_embeddings = get_multiembeddings(G, 2, skim=50)[:1000, :] # TODO remove
-    labels = labels[:1000, :]
+    num_randomizations = 200
+    skim = 50
+    m_embeddings = get_multiembeddings(G, num_randomizations, skim=skim)
     mds = MDS(3, n_jobs=3)
     reduced_embedding = mds.fit_transform(m_embeddings)
     # Evaluate embedding
-    with open('md_bc_200_s30.pkl', 'wb') as embedding_file:
+    with open(f'md_bc_{num_randomizations}_s{skim}.pkl', 'wb') as embedding_file:
         pickle.dump(reduced_embedding, embedding_file)
-    acc_md, prec_md, recall_md, f1_md = evaluate_embedding(reduced_embedding, labels)
+
+    acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels)
+    print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
 
     # Get n2v embedding
-    n2v_emb = n2v_embeddings('/dmml_pool/datasets/graph/blogcatalog.mat', 'sc_bc_walks.pkl', 'sc_bc.emb', emb_dim=3)
-    reduced_embedding = mds.fit(np.array(n2v_emb))
-    acc_n2v, prec_n2v, recall_n2v, f1_n2v = evaluate_embedding(reduced_embedding, labels)
+    # n2v_emb = n2v_embeddings('/dmml_pool/datasets/graph/blogcatalog.mat', 'sc_bc_walks.pkl', 'sc_bc.emb', emb_dim=3)
+    # reduced_embedding = mds.fit(np.array(n2v_emb))
+    # acc_n2v, prec_n2v, recall_n2v, f1_n2v = evaluate_embedding(reduced_embedding, labels)
