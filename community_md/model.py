@@ -101,6 +101,7 @@ def readjust_graph(G: nx.Graph, suggestions={}):
     for a, b in G.edges:
         new_edge_list.append((reverse_map[a], reverse_map[b]))
     new_G = nx.Graph()
+    new_G.add_nodes_from([reverse_map[x] for x in G.nodes])
     new_G.add_edges_from(new_edge_list)
     return new_G, index_map
 

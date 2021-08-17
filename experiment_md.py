@@ -1,5 +1,5 @@
 import math
-
+import unittest
 from scipy.io import loadmat
 import networkx as nx
 from typing import Dict
@@ -11,25 +11,51 @@ import numpy as np
 from experiment import n2v_embeddings
 import pickle
 import random
+from scipy import sparse
 
+
+# class TestPartitions(unittest.TestCase):
+#     def test_partitions(self):
+#         a = [1, 2, 3, 4]
+#         p = get_partitions(a, 2)
+#         self.assertEqual(p[0], [1, 2])
 
 def get_partitions(arr, num_partitions):
     partitions = []
     size_fold = math.floor(len(arr)/num_partitions)
     for i in range(0, len(arr), size_fold):
-        partitions.append(arr[i, i+size_fold])
+        partitions.append(arr[i:i+size_fold])
     return partitions
 
 
+def get_metrics(predictions, labels) -> (float, float, float, float):
+    """
+
+    :param predictions: prediction probabilities
+    :param labels: one hot labels
+    :return: accuracy, precision, recall, f1
+    """
+    # TODO complete this function
+    pass
+
+
 def evaluate_embedding(embedding, oh_labels, folds=10):
-    embedding_and_labels = zip(embedding, oh_labels)
+    embedding_and_labels = list(zip(embedding, np.argmax(oh_labels, axis=1)))
     random.shuffle(embedding_and_labels)
-    size_fold = math.floor(len(embedding_and_labels)/folds)
-    partitions = []
-    for i in range(0, len(embedding_and_labels), size_fold):
-        partitions.append(embedding_and_labels[i:i+size_fold])
-        pass
-    # Apply log regression
+    partitions = get_partitions(embedding_and_labels, folds)
+    predictions = []
+    for i in range(folds):
+        test_fold = partitions[i]
+        training_folds = [y for j, x in enumerate(partitions) if j != i for y in x]
+        test_embeddings = np.vstack([x[0] for x in test_fold])
+        test_labels = np.hstack([x[1] for x in test_fold])
+        train_embeddings = np.vstack([x[0] for x in training_folds])
+        train_labels = np.hstack([x[1] for x in training_folds])
+        # Apply log regression
+        log_model = LogisticRegression()
+        log_model.fit(train_embeddings, train_labels)
+        fold_preds = log_model.predict(test_embeddings)
+        predictions.append((test_labels, fold_preds))
     # Accuracy, F1, precision, recall
     # 10 fold validation
     return embedding, oh_labels
@@ -57,9 +83,10 @@ if __name__ == "__main__":
     G = nx.from_scipy_sparse_matrix(bc_mat['network'])
     labels = bc_mat['group']
     # Get md embedding
-    m_embeddings = get_multiembeddings(G, 200, skim=30)
-    mds = MDS(3)
-    reduced_embedding = mds.fit(m_embeddings)
+    m_embeddings = get_multiembeddings(G, 2, skim=50)[:1000, :] # TODO remove
+    labels = labels[:1000, :]
+    mds = MDS(3, n_jobs=3)
+    reduced_embedding = mds.fit_transform(m_embeddings)
     # Evaluate embedding
     with open('md_bc_200_s30.pkl', 'wb') as embedding_file:
         pickle.dump(reduced_embedding, embedding_file)
