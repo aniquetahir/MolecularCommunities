@@ -104,12 +104,20 @@ def save_md_embedding_combo(G, g_name='bc'):
             m_embeddings = get_multiembeddings(**combo)
             with open(savename, 'wb') as embedding_file:
                 pickle.dump(m_embeddings, embedding_file)
+        else:
+            with open(savename, 'rb') as embedding_file:
+                m_embeddings = pickle.load(embedding_file)
+            mds = MDS(2, n_jobs=35)
+            reduced_embedding = mds.fit_transform(m_embeddings)
+            with open(savename + '.mds2d', 'wb') as mds_file:
+                pickle.dump(reduced_embedding, mds_file)
+            
 
 
 
 
 if __name__ == "__main__":
-    bc_mat = loadmat('/new-pool/datasets/blogcatalog.mat')
+    bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
     G = nx.from_scipy_sparse_matrix(bc_mat['network'])
     labels = bc_mat['group']
     save_md_embedding_combo(G)
