@@ -84,7 +84,7 @@ def iter_params(params: Dict):
     return dicted_combinations
 
 
-def save_md_embedding_combo(G, g_name='bc'):
+def save_md_embedding_combo(G, labels, g_name='bc'):
     randomization_nums = [100, 200, 400]
     skim_nums = [10, 20, 40, 80]
     dims = [2, 3]
@@ -100,6 +100,8 @@ def save_md_embedding_combo(G, g_name='bc'):
     for i, combo in enumerate(func_params):
         print(f'Combo {i}/{num_combos}')
         savename = f'md_{g_name}_dim{combo["dim"]}_{combo["num_embeddings"]}_s{combo["skim"]}.pkl'
+        m_embeddings = None
+        reduced_embedding = None
         if not os.path.exists(savename):
             m_embeddings = get_multiembeddings(**combo)
             with open(savename, 'wb') as embedding_file:
@@ -107,38 +109,55 @@ def save_md_embedding_combo(G, g_name='bc'):
         else:
             with open(savename, 'rb') as embedding_file:
                 m_embeddings = pickle.load(embedding_file)
-            mds = MDS(2, n_jobs=35)
-            reduced_embedding = mds.fit_transform(m_embeddings)
-            with open(savename + '.mds2d', 'wb') as mds_file:
-                pickle.dump(reduced_embedding, mds_file)
+        
+        for d in [2, 4, 8, 16, 32, 64]:
+            mds = MDS(d)
+            mds_path = savename + f'.mds{d}d'
+            if not os.path.exists(mds_path):
+                reduced_embedding = mds.fit_transform(m_embeddings)
+                with open(mds_path, 'wb') as mds_file:
+                    pickle.dump(reduced_embedding, mds_file)
+            else:
+                with open(mds_path, 'rb') as mds_file:
+                    reduced_embedding = pickle.load(mds_file)
+            acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels, sparse=False)
+            print(f'MDS dim:{d}')
+            print(combo)
+            print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
             
 
 
 
 
 if __name__ == "__main__":
-    bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
-    G = nx.from_scipy_sparse_matrix(bc_mat['network'])
-    labels = bc_mat['group']
-    save_md_embedding_combo(G)
+    # bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
+    # G = nx.from_scipy_sparse_matrix(bc_mat['network'])
+    # labels = bc_mat['group']
+    G = nx.karate_club_graph()
+    labels = [v['club'] for k, v  in G.nodes.data()]
+    label_to_cat = {}
+    for i, v in enumerate(set(labels)):
+        label_to_cat[v] = i
+    labels = [label_to_cat[x] for x in labels]
+    save_md_embedding_combo(G, labels, g_name='karate')
     print('Done saving combos')
     # Get md embedding
-    num_randomizations = 200
-    skim = 50
-    reduced_dim = 3
-    print('Calculating Molecular embeddings')
-    m_embeddings = get_multiembeddings(G, num_randomizations, skim=skim)
-    with open(f'md_bc_{num_randomizations}_s{skim}.pkl', 'wb') as md_file:
-        pickle.dump(m_embeddings, md_file)
-    print('Calculating MDS reduction')
-    mds = MDS(reduced_dim, n_jobs=3)
-    reduced_embedding = mds.fit_transform(m_embeddings)
-    # Evaluate embedding
-    with open(f'md_bc_mds{reduced_dim}_{num_randomizations}_s{skim}.pkl', 'wb') as embedding_file:
-        pickle.dump(reduced_embedding, embedding_file)
-    print('Calculating Metrics')
-    acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels)
-    print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
+    # num_randomizations = 200
+    # skim = 50
+    # reduced_dim = 3
+    # print('Calculating Molecular embeddings')
+    # m_embeddings = get_multiembeddings(G, num_randomizations, skim=skim)
+    # with open(f'md_bc_{num_randomizations}_s{skim}.pkl', 'wb') as md_file:
+    #     pickle.dump(m_embeddings, md_file)
+    # print('Calculating MDS reduction')
+    # mds = MDS(reduced_dim, n_jobs=3)
+    # reduced_embedding = mds.fit_transform(m_embeddings)
+    # # Evaluate embedding
+    # with open(f'md_bc_mds{reduced_dim}_{num_randomizations}_s{skim}.pkl', 'wb') as embedding_file:
+    #     pickle.dump(reduced_embedding, embedding_file)
+    # print('Calculating Metrics')
+    # acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels)
+    # print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
 
     # Get n2v embedding
     # n2v_emb = n2v_embeddings('/dmml_pool/datasets/graph/blogcatalog.mat', 'sc_bc_walks.pkl', 'sc_bc.emb', emb_dim=3)
