@@ -1,4 +1,5 @@
 import math
+import pandas as pd
 import os
 import unittest
 
@@ -97,6 +98,7 @@ def save_md_embedding_combo(G, labels, g_name='bc'):
     }
     func_params = iter_params(params)
     num_combos = len(func_params)
+    eval_results = []
     for i, combo in enumerate(func_params):
         print(f'Combo {i}/{num_combos}')
         savename = f'md_{g_name}_dim{combo["dim"]}_{combo["num_embeddings"]}_s{combo["skim"]}.pkl'
@@ -124,9 +126,18 @@ def save_md_embedding_combo(G, labels, g_name='bc'):
             print(f'MDS dim:{d}')
             print(combo)
             print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
-            
-
-
+            eval_object = {
+                'mds_dim': d,
+                'accuracy': acc_md,
+                'precision': prec_md,
+                'recall': recall_md,
+                'f1': f1_md
+            }
+            for k, v in combo:
+                eval_object[k] = v
+            eval_results.append(eval_object)
+    results_frame = pd.DataFrame(eval_results)
+    results_frame.to_csv(f'{g_name.results.csv}')
 
 
 if __name__ == "__main__":
