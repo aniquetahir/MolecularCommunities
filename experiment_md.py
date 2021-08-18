@@ -84,7 +84,7 @@ def iter_params(params: Dict):
     return dicted_combinations
 
 
-def save_md_embedding_combo(G):
+def save_md_embedding_combo(G, g_name='bc'):
     randomization_nums = [100, 200, 400]
     skim_nums = [10, 20, 40, 80]
     dims = [2, 3]
@@ -92,13 +92,14 @@ def save_md_embedding_combo(G):
         'G': [G],
         'num_embeddings': randomization_nums,
         'skim': skim_nums,
-        'dim': dims
+        'dim': dims,
+        'g_name': [g_name]
     }
     func_params = iter_params(params)
     num_combos = len(func_params)
     for i, combo in enumerate(func_params):
         print(f'Combo {i}/{num_combos}')
-        savename = f'md_bc_dim{combo["dim"]}_{combo["num_embeddings"]}_s{combo["skim"]}.pkl'
+        savename = f'md_{g_name}_dim{combo["dim"]}_{combo["num_embeddings"]}_s{combo["skim"]}.pkl'
         if not os.path.exists(savename):
             m_embeddings = get_multiembeddings(**combo)
             with open(savename, 'wb') as embedding_file:

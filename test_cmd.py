@@ -1,3 +1,5 @@
+import pickle
+
 from community_md import MolecularCommunities
 from collections import defaultdict
 from sklearn.manifold import MDS
@@ -8,6 +10,7 @@ import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import os
 
 
 def get_cumulative_embeddings(G, num_embeddings, num_steps=10000, skim=-1, dim=2):
@@ -34,17 +37,28 @@ def get_cumulative_embeddings(G, num_embeddings, num_steps=10000, skim=-1, dim=2
     return cumulative_embedding, all_embeddings
 
 
-def get_multiembeddings(G, num_embeddings, num_steps=10000, skim=-1, dim=2):
+def get_multiembeddings(G, num_embeddings, num_steps=10000, skim=-1, dim=2, g_name=None):
     all_embeddings = []
     all_energies = []
+    graph_hash = g_name
     for i in tqdm(range(num_embeddings)):
-        key = random.PRNGKey(i)
-        mc = MolecularCommunities(key, G, minimization_steps=num_steps, dim=dim)
-        md_embeddings, energy = mc.train()
-        all_embeddings.append(np.array(md_embeddings))
+        md_hash = f'{graph_hash}_n{num_steps}_d{dim}_{i}'
+        hash_path = f'md_cache/{md_hash}'
+        if not os.path.exists(hash_path) or g_name is None:
+            key = random.PRNGKey(i)
+            mc = MolecularCommunities(key, G, minimization_steps=num_steps, dim=dim)
+            md_embeddings, energy = mc.train()
+            md_embeddings = np.array(md_embeddings)
+            del mc
+            with open(hash_path, 'wb') as md_file:
+                pickle.dump((md_embeddings, energy), md_file)
+        else:
+            with open(hash_path, 'rb') as md_file:
+                md_embeddings, energy = pickle.load(md_file)
+        all_embeddings.append(md_embeddings)
         all_energies.append(energy)
-        del md_embeddings
-        del mc
+        # del md_embeddings
+        # del mc
     skimmed_embeddings = sorted(zip(all_embeddings, all_energies), key=lambda x: x[1])
     all_embeddings = [x[0] for x in skimmed_embeddings]
     all_embeddings = np.hstack(all_embeddings) if skim == -1 else np.hstack(all_embeddings[:skim])
