@@ -1,4 +1,5 @@
 import math
+import os
 import unittest
 
 from sklearn import metrics
@@ -10,7 +11,7 @@ from sklearn.linear_model import LogisticRegression
 from itertools import combinations, product
 from test_cmd import get_multiembeddings, get_cumulative_embeddings
 import numpy as np
-from experiment import n2v_embeddings
+# from experiment import n2v_embeddings
 import pickle
 import random
 from scipy import sparse
@@ -83,23 +84,50 @@ def iter_params(params: Dict):
     return dicted_combinations
 
 
+def save_md_embedding_combo(G):
+    randomization_nums = [100, 200, 400]
+    skim_nums = [10, 20, 40, 80]
+    dims = [2, 3]
+    params = {
+        'G': [G],
+        'num_embeddings': randomization_nums,
+        'skim': skim_nums,
+        'dim': dims
+    }
+    func_params = iter_params(params)
+    num_combos = len(func_params)
+    for i, combo in enumerate(func_params):
+        print(f'Combo {i}/{num_combos}')
+        savename = f'md_bc_dim{combo["dim"]}_{combo["num_embeddings"]}_s{combo["skim"]}.pkl'
+        if not os.path.exists(savename):
+            m_embeddings = get_multiembeddings(**combo)
+            with open(savename, 'wb') as embedding_file:
+                pickle.dump(m_embeddings, embedding_file)
+
+
+
+
 if __name__ == "__main__":
-    bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
+    bc_mat = loadmat('/new-pool/datasets/blogcatalog.mat')
     G = nx.from_scipy_sparse_matrix(bc_mat['network'])
     labels = bc_mat['group']
+    save_md_embedding_combo(G)
+    print('Done saving combos')
     # Get md embedding
     num_randomizations = 200
     skim = 50
     reduced_dim = 3
+    print('Calculating Molecular embeddings')
     m_embeddings = get_multiembeddings(G, num_randomizations, skim=skim)
     with open(f'md_bc_{num_randomizations}_s{skim}.pkl', 'wb') as md_file:
         pickle.dump(m_embeddings, md_file)
+    print('Calculating MDS reduction')
     mds = MDS(reduced_dim, n_jobs=3)
     reduced_embedding = mds.fit_transform(m_embeddings)
     # Evaluate embedding
     with open(f'md_bc_mds{reduced_dim}_{num_randomizations}_s{skim}.pkl', 'wb') as embedding_file:
         pickle.dump(reduced_embedding, embedding_file)
-
+    print('Calculating Metrics')
     acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels)
     print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
 
