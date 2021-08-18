@@ -90,11 +90,14 @@ if __name__ == "__main__":
     # Get md embedding
     num_randomizations = 200
     skim = 50
+    reduced_dim = 3
     m_embeddings = get_multiembeddings(G, num_randomizations, skim=skim)
-    mds = MDS(3, n_jobs=3)
+    with open(f'md_bc_{num_randomizations}_s{skim}.pkl', 'wb') as md_file:
+        pickle.dump(m_embeddings, md_file)
+    mds = MDS(reduced_dim, n_jobs=3)
     reduced_embedding = mds.fit_transform(m_embeddings)
     # Evaluate embedding
-    with open(f'md_bc_{num_randomizations}_s{skim}.pkl', 'wb') as embedding_file:
+    with open(f'md_bc_mds{reduced_dim}_{num_randomizations}_s{skim}.pkl', 'wb') as embedding_file:
         pickle.dump(reduced_embedding, embedding_file)
 
     acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels)
