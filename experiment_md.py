@@ -85,7 +85,7 @@ def iter_params(params: Dict):
     return dicted_combinations
 
 
-def save_md_embedding_combo(G, labels, g_name='bc'):
+def save_md_embedding_combo(G, labels, g_name='bc', sparse_labels=False):
     randomization_nums = [100, 200, 400]
     skim_nums = [10, 20, 40, 80]
     dims = [2, 3]
@@ -111,9 +111,12 @@ def save_md_embedding_combo(G, labels, g_name='bc'):
         else:
             with open(savename, 'rb') as embedding_file:
                 m_embeddings = pickle.load(embedding_file)
-        
+
+        if np.isnan(m_embeddings).any():
+            print(f'nan found at:')
+            print(combo)
         for d in [2, 4, 8, 16, 32, 64]:
-            mds = MDS(d)
+            mds = MDS(d, n_jobs=40)
             mds_path = savename + f'.mds{d}d'
             if not os.path.exists(mds_path):
                 reduced_embedding = mds.fit_transform(m_embeddings)
@@ -122,7 +125,7 @@ def save_md_embedding_combo(G, labels, g_name='bc'):
             else:
                 with open(mds_path, 'rb') as mds_file:
                     reduced_embedding = pickle.load(mds_file)
-            acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels, sparse=False)
+            acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels, sparse=sparse_labels)
             print(f'MDS dim:{d}')
             print(combo)
             print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
@@ -133,43 +136,37 @@ def save_md_embedding_combo(G, labels, g_name='bc'):
                 'recall': recall_md,
                 'f1': f1_md
             }
-            for k, v in combo:
+            for k, v in combo.items():
                 eval_object[k] = v
             eval_results.append(eval_object)
     results_frame = pd.DataFrame(eval_results)
-    results_frame.to_csv(f'{g_name.results.csv}')
+    results_frame.to_csv(f'{g_name}.results.csv')
 
 
-if __name__ == "__main__":
-    # bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
-    # G = nx.from_scipy_sparse_matrix(bc_mat['network'])
-    # labels = bc_mat['group']
+def evaluate_md_karate():
     G = nx.karate_club_graph()
-    labels = [v['club'] for k, v  in G.nodes.data()]
+    labels = [v['club'] for k, v in G.nodes.data()]
     label_to_cat = {}
     for i, v in enumerate(set(labels)):
         label_to_cat[v] = i
     labels = [label_to_cat[x] for x in labels]
     save_md_embedding_combo(G, labels, g_name='karate')
     print('Done saving combos')
-    # Get md embedding
-    # num_randomizations = 200
-    # skim = 50
-    # reduced_dim = 3
-    # print('Calculating Molecular embeddings')
-    # m_embeddings = get_multiembeddings(G, num_randomizations, skim=skim)
-    # with open(f'md_bc_{num_randomizations}_s{skim}.pkl', 'wb') as md_file:
-    #     pickle.dump(m_embeddings, md_file)
-    # print('Calculating MDS reduction')
-    # mds = MDS(reduced_dim, n_jobs=3)
-    # reduced_embedding = mds.fit_transform(m_embeddings)
-    # # Evaluate embedding
-    # with open(f'md_bc_mds{reduced_dim}_{num_randomizations}_s{skim}.pkl', 'wb') as embedding_file:
-    #     pickle.dump(reduced_embedding, embedding_file)
-    # print('Calculating Metrics')
-    # acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels)
-    # print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
 
+
+def evaluate_md_blogcatalog():
+    bc_mat = loadmat('blogcatalog.mat')
+    G = nx.from_scipy_sparse_matrix(bc_mat['network'])
+    labels = bc_mat['group']
+    save_md_embedding_combo(G, labels, g_name='bc', sparse_labels=True)
+
+
+
+if __name__ == "__main__":
+    evaluate_md_blogcatalog()
+    # bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
+    # G = nx.from_scipy_sparse_matrix(bc_mat['network'])
+    # labels = bc_mat['group']
     # Get n2v embedding
     # n2v_emb = n2v_embeddings('/dmml_pool/datasets/graph/blogcatalog.mat', 'sc_bc_walks.pkl', 'sc_bc.emb', emb_dim=3)
     # reduced_embedding = mds.fit(np.array(n2v_emb))
