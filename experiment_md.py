@@ -125,22 +125,22 @@ def save_md_embedding_combo(G, labels, g_name='bc', sparse_labels=False):
             else:
                 with open(mds_path, 'rb') as mds_file:
                     reduced_embedding = pickle.load(mds_file)
-            acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels, sparse=sparse_labels)
-            print(f'MDS dim:{d}')
-            print(combo)
-            print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
-            eval_object = {
-                'mds_dim': d,
-                'accuracy': acc_md,
-                'precision': prec_md,
-                'recall': recall_md,
-                'f1': f1_md
-            }
-            for k, v in combo.items():
-                eval_object[k] = v
-            eval_results.append(eval_object)
-    results_frame = pd.DataFrame(eval_results)
-    results_frame.to_csv(f'{g_name}.results.csv')
+    #         acc_md, prec_md, recall_md, f1_md, support = evaluate_embedding(reduced_embedding, labels, sparse=sparse_labels)
+    #         print(f'MDS dim:{d}')
+    #         print(combo)
+    #         print(f'Acc: {acc_md}\n Prec: {prec_md}\n Recall: {recall_md}\n F1: {f1_md}')
+    #         eval_object = {
+    #             'mds_dim': d,
+    #             'accuracy': acc_md,
+    #             'precision': prec_md,
+    #             'recall': recall_md,
+    #             'f1': f1_md
+    #         }
+    #         for k, v in combo.items():
+    #             eval_object[k] = v
+    #         eval_results.append(eval_object)
+    # results_frame = pd.DataFrame(eval_results)
+    # results_frame.to_csv(f'{g_name}.results.csv')
 
 
 def evaluate_md_karate():

@@ -13,8 +13,10 @@ def evaluate_karate():
         label_to_cat[v] = i
     labels = [label_to_cat[x] for x in labels]
     model = n2v_embedding_nx(G, 'n2v_karate.walks', 'n2v_karate.emb', 2)
-    print(model.wv)
-
+    print(model.vectors)
+    # Get back original node configuration
+    for n in G.nodes:
+        pass
     pass
 
 

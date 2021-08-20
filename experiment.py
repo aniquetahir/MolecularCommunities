@@ -14,7 +14,7 @@ from scipy.io import loadmat
 import ge
 
 import pickle
-from gensim.models import Word2Vec
+from gensim.models import Word2Vec, KeyedVectors
 
 BC_DATA_PATH = '/new-pool/datasets/blogcatalog.mat'
 FLICKR_DATA_PATH = ''
@@ -46,7 +46,9 @@ def n2v_embedding_nx(G: nx.Graph, path_to_walks, emb_path, emb_dim):
     full_emb_path = f'{emb_path}_{emb_dim}'
     if not os.path.exists(full_emb_path):
         model = Word2Vec(str_walks, vector_size=emb_dim, window=5, min_count=0, sg=1, workers=2, epochs=1)
-        model.wv.save_word2vec_format(full_emb_path)
+        model.wv.save(full_emb_path)
+    else:
+        model = KeyedVectors.load(fname=full_emb_path)
     return model
 
 
