@@ -20,7 +20,7 @@ BC_DATA_PATH = '/new-pool/datasets/blogcatalog.mat'
 FLICKR_DATA_PATH = ''
 YOUTUBE_DATA_PATH = ''
 
-def n2v_embedding_nx(G: nx.Graph, path_to_walks, emb_path, emb_dim):
+def n2v_embedding_nx(G: nx.Graph, path_to_walks, emb_path, emb_dim, p=0.5, q=2.0):
     bc_G = G.copy()
     sg_bc_G = sg.StellarGraph.from_networkx(bc_G)
     print(sg_bc_G.info())
@@ -35,8 +35,8 @@ def n2v_embedding_nx(G: nx.Graph, path_to_walks, emb_path, emb_dim):
             nodes=list(sg_bc_G.nodes()),  # root nodes
             length=100,  # maximum length of a random walk
             n=10,  # number of random walks per root node
-            p=0.5,  # Defines (unormalised) probability, 1/p, of returning to source node
-            q=2.0,  # Defines (unormalised) probability, 1/q, for moving away from source node
+            p=p,  # Defines (unormalised) probability, 1/p, of returning to source node
+            q=q,  # Defines (unormalised) probability, 1/q, for moving away from source node
         )
         print("Number of random walks: {}".format(len(walks)))
         with open(path_to_walks, 'wb') as walk_file:
@@ -47,6 +47,7 @@ def n2v_embedding_nx(G: nx.Graph, path_to_walks, emb_path, emb_dim):
     if not os.path.exists(full_emb_path):
         model = Word2Vec(str_walks, vector_size=emb_dim, window=5, min_count=0, sg=1, workers=2, epochs=1)
         model.wv.save(full_emb_path)
+        model = model.wv
     else:
         model = KeyedVectors.load(fname=full_emb_path)
     return model
