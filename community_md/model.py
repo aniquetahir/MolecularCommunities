@@ -237,7 +237,7 @@ class MolecularCommunities:
         return self.custom_morse(dr/stretch)
 
     def get_bond_energy_fn(self, displacement_or_metric, bonds, bond_type=None):
-        return smap.bond(self.lj_energy,
+        return smap.bond( self.linear_energy,  # self.lj_energy,
                          space.canonicalize_displacement_or_metric(displacement_or_metric),
                          bonds
                          )

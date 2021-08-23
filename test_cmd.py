@@ -80,14 +80,14 @@ def get_minembeddings(G, num_embeddings, num_steps=10000):
     return min_embedding
 
 
-def plot_graph(G, embeddings, communities):
+def plot_graph(G, embeddings, communities, node_size=30):
     pos_md = dict(zip(range(len(embeddings)), np.array(embeddings)))
     cmap = plt.get_cmap(lut=len(communities))
     colors = list(cmap.colors)
     random.shuffle(colors)
     for i, community in enumerate(communities):
         c = [colors[i]] * len(community)
-        nx.draw_networkx_nodes(G, pos_md, nodelist=community, node_color=c, node_size=7)
+        nx.draw_networkx_nodes(G, pos_md, nodelist=community, node_color=c, node_size=node_size)
     nx.draw_networkx_edges(G, pos_md, alpha=0.5)
     # nx.draw_networkx_nodes(G, pos_md, nodelist=communities[0], node_color='r')
     # nx.draw_networkx_nodes(G, pos_md, nodelist=communities[1], node_color='g')
@@ -131,16 +131,19 @@ def test_karate():
     for k, v in G.nodes.data():
         gt_communities[v['club']].append(k)
     gt_communities = list(gt_communities.values())
-    multiembeddings = get_multiembeddings(G, 100, skim=50)
+    multiembeddings = get_multiembeddings(G, 100, skim=50, g_name='karate_linear_only')
 
-    mds = MDS(2)
-    mds_embeddings = mds.fit_transform(np.array(multiembeddings))
+    tsne = TSNE(2)
+    reduced_embedding = tsne.fit_transform(np.array(multiembeddings))
+    # mds = MDS(2)
+    # mds_embeddings = mds.fit_transform(np.array(multiembeddings))
     # mds_embeddings = get_minembeddings(G, 100)
-    plot_graph(mds_embeddings, gt_communities)
-    plot_graph(mds_embeddings, communities)
+    plot_graph(G, reduced_embedding, gt_communities)
+    # plot_graph(G, mds_embeddings, communities)
     # print('Testing Community MD')
 
 
 if __name__ == "__main__":
+    # test_karate()
     test_bc(2000)
     pass
