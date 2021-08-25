@@ -8,6 +8,9 @@ from sklearn.manifold import MDS, TSNE, Isomap
 import networkx as nx
 import random
 import matplotlib.pyplot as plt
+from functools import partial
+from itertools import combinations
+from scipy.optimize import fsolve, least_squares
 
 
 def plot_graph(G, embeddings, communities):
@@ -25,6 +28,7 @@ def plot_graph(G, embeddings, communities):
     #     nx.draw_networkx_nodes(G, pos_md, nodelist=communities[2], node_color='b')
     # nx.draw_networkx_edges(G, pos_md)
     plt.show()
+    # input("Press enter to continue")
 
 
 def get_reduced_sample_graph(G, embeddings, labels, sample_size):
@@ -70,6 +74,7 @@ def onehot_to_cat(mat):
     labels = np.argmax(mat, axis=1)
     return np.array(labels).flatten()
 
+
 def labelled_data_to_groups(labels):
     group_dict = defaultdict(list)
     for i, label in enumerate(labels):
@@ -110,3 +115,24 @@ def unindex_graph(G: nx.Graph, index_map):
     old_G = nx.Graph()
     old_G.add_edges_from(old_edges)
     return old_G
+
+
+def pythagorean_fn(p, distance_dict):
+    num_params = len(p)
+    param_index_combinations = distance_dict.keys()
+    equations = []
+    for i, j in param_index_combinations:
+        equations.append(p[i]**2 + p[j]**2 - distance_dict[(i, j)]**2)
+    return equations
+
+
+def get_intra_cluster_distances(connection_matrix):
+    num_clusters = connection_matrix.shape[0]
+    cluster_combinations = combinations(range(num_clusters), 2)
+    dist_dict = {}
+    for combo in cluster_combinations:
+        dist_dict[combo] = connection_matrix[combo[0], combo[1]]
+    pyth_partial_fn = partial(pythagorean_fn, distance_dict=dist_dict)
+    # solutions = fsolve(pyth_partial_fn, [1]*num_clusters)
+    solutions = least_squares(pyth_partial_fn, [1] * num_clusters)
+    return solutions.x
