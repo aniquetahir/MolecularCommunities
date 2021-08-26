@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from functools import partial
 from itertools import combinations
 from scipy.optimize import fsolve, least_squares
+from graspologic.simulations import sbm
 
 
 def plot_graph(G, embeddings, communities):
@@ -136,3 +137,87 @@ def get_intra_cluster_distances(connection_matrix):
     # solutions = fsolve(pyth_partial_fn, [1]*num_clusters)
     solutions = least_squares(pyth_partial_fn, [1] * num_clusters)
     return solutions.x
+
+
+def label_to_onehot(labels):
+    uniq_labels = list(set(labels))
+    num_labels = len(uniq_labels)
+    num_samples = len(labels)
+    oh_labels = []
+    label_to_oh = {}
+    for i, l in enumerate(uniq_labels):
+        tmp = np.zeros(num_labels)
+        tmp[i] = 1
+        label_to_oh[l] = tmp
+    for label in labels:
+        oh_labels.append(label_to_oh[label])
+    return np.vstack(oh_labels)
+
+
+def get_uniform_random_sbm(community_cap: int, members_cap: int) -> (nx.Graph, np.ndarray):
+    """
+    Creates an SBM graph from a uniform random distribution
+    :param community_cap: The number of maximum communities in the graph
+    :param members_cap: The maximum number of individuals in a community
+    :return: A networkx Graph and the labels for the nodes
+    """
+    num_communities = random.randint(2, community_cap)
+    vertices_per_community = []
+    for i in range(num_communities):
+        num_community_vertices = random.randint(2, members_cap)
+        vertices_per_community.append(num_community_vertices)
+    p = np.zeros((num_communities, num_communities))
+
+    for combo in combinations(range(num_communities), 2):
+        community_edge_prob = random.random() / 2
+        p[combo[0], combo[1]] = community_edge_prob
+        p[combo[1], combo[0]] = community_edge_prob
+
+    adj, labels = sbm(vertices_per_community, p, return_labels=True)
+    G = nx.convert_matrix.from_numpy_array(adj)
+    return G, labels
+
+
+def get_distance_matrix(G: nx.Graph, labels):
+    num_edges_dict = defaultdict(int)
+    node_to_label = {}
+    communities = sorted(list(set(labels)))
+    community_to_index = dict(zip(communities, range(len(communities))))
+    for i, n in enumerate(G.nodes):
+        node_to_label[n] = labels[i]
+    for u, v in G.edges:
+        c1 = community_to_index[node_to_label[u]]
+        c2 = community_to_index[node_to_label[v]]
+        if c1 == c2:
+            continue
+        if c1 > c2:
+            c1, c2 = c2, c1
+        num_edges_dict[(c1, c2)] += 1
+    num_communities = len(communities)
+    d = np.zeros((num_communities, num_communities))
+    for i in range(num_communities):
+        for j in range(num_communities):
+            x, y = (j, i) if i > j else (i, j)
+            d[i, j] = num_edges_dict[(x, y)]
+    return d, opposite_dict(community_to_index)
+
+
+def get_community_embeddings_from_gt(G, labels):
+    # oh_embeddings = label_to_onehot(labels)
+    d_matrix, index_to_community = get_distance_matrix(G, labels)
+    inv_d_matrix = np.max(d_matrix) + 1 - d_matrix
+    community_vec_magnitudes = get_intra_cluster_distances(inv_d_matrix)
+    c_embeddings = label_to_onehot(labels) * community_vec_magnitudes
+    return c_embeddings
+
+
+def get_reduced_community_embeddings_from_gt(G, labels, dim=2, reduction_fn=TSNE):
+    c_embeddings = get_community_embeddings_from_gt(G, labels)
+    reducer = reduction_fn(dim)
+    embeddings = reducer.fit_transform(c_embeddings)
+    return embeddings
+
+
+
+
+

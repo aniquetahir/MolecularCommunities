@@ -8,3 +8,4 @@ scikit-learn
 stellargraph[demos]
 chardet
 fastdtw
+graspologic
