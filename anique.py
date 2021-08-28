@@ -220,12 +220,15 @@ def get_reduced_community_embeddings_from_gt(G, labels, dim=2, reduction_fn=TSNE
 def perturb_embeddings(embedding: np.ndarray, intensity: float):
     num_samples, dim = embedding.shape
     new_embedding = np.zeros_like(embedding)
+    total_energy = 0
     for i, emb in enumerate(embedding):
         perturbation_vector = np.random.rand(dim)
         perturbation_vector = perturbation_vector / np.linalg.norm(perturbation_vector)
-        perturbation = perturbation_vector * random.random() * intensity
+        p_magnitude = random.random() * intensity
+        perturbation = perturbation_vector * p_magnitude
+        total_energy += p_magnitude
         new_embedding[i] = emb + perturbation
-    return new_embedding,  num_samples * intensity / 2.
+    return new_embedding, total_energy
 
 
 

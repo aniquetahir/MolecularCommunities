@@ -33,8 +33,11 @@ from scipy.io import loadmat
 
 if __name__ == "__main__":
     #Create a random graph
-    G, labels = get_uniform_random_sbm(10, 10)
+    print('Creating Graph')
+    G, labels = get_uniform_random_sbm(50, 100)
+    print('Getting embeddings')
     r_embeddings = get_community_embeddings_from_gt(G, labels)
+    print('Reducing and plotting embeddings')
     plot_reduced_embedding(G, r_embeddings, labels, TSNE)
     # See blogcatalog
     # bc_mat = loadmat('blogcatalog.mat')
