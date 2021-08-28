@@ -13,7 +13,7 @@ if __name__ == "__main__":
         # Get energy after perturbation
         for perturb_intensity in range(0, 1000, 100):
             pert_embeddings, energy = perturb_embeddings(r_embeddings, perturb_intensity)
-            synthetic_data.append((pert_embeddings, energy,))
+            synthetic_data.append((list(G.edges), pert_embeddings, energy,))
 
     # TODO save synthetic data
     save_pickle(synthetic_data, 'synthetic_energy_data.pkl')
