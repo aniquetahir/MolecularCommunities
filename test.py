@@ -33,9 +33,9 @@ from scipy.io import loadmat
 
 if __name__ == "__main__":
     #Create a random graph
-    G, labels = get_uniform_random_sbm(100, 100)
-    r_embeddings = get_reduced_community_embeddings_from_gt(G, labels)
-
+    G, labels = get_uniform_random_sbm(10, 10)
+    r_embeddings = get_community_embeddings_from_gt(G, labels)
+    plot_reduced_embedding(G, r_embeddings, labels, TSNE)
     # See blogcatalog
     # bc_mat = loadmat('blogcatalog.mat')
     # G = nx.from_scipy_sparse_matrix(bc_mat['network'])
