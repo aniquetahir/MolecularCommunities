@@ -9,3 +9,7 @@ stellargraph[demos]
 chardet
 fastdtw
 graspologic
+flax
+optax
+trax
+dm-haiku
