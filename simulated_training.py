@@ -1,3 +1,4 @@
+from anique import save_pickle, load_pickle
 import jax.nn
 import numpy as onp
 
@@ -81,6 +82,9 @@ def train():
     loss_fn_value_grad = jax.value_and_grad(loss_fn)
 
     for i in tqdm(range(num_iterations)):
+        if i % 10 == 1:
+            save_pickle(params, f'training_cache/simulated_nn.{i}.pkl')
+
         try:
             edges, perterbed_emb, energy, gt_embeddings = next(graph_generator)
             # loss_fn(params, np.array(perterbed_emb, f64), np.array(gt_embeddings, f64), np.array(edges))
