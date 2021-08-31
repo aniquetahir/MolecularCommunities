@@ -6,8 +6,10 @@ import optax
 import haiku as hk
 from jax import vmap, pmap, jit
 import os
-from anique import load_pickle
+from anique import load_pickle, save_pickle
 import random
+from dataset_creation import generate_sample
+import matplotlib.pyplot as plt
 
 
 def get_batch():
@@ -18,25 +20,33 @@ def get_batch():
         y = x ** 2
         yield x, y
 
+
 def get_graph_batch():
     random.seed(7)
-    graph_files = [x for x in os.listdir('synth_cache') if 'pkl' in x]
+    sample_generator = generate_sample()
+    # graph_files = [os.path.join('synth_cache', x) for x in os.listdir('synth_cache') if 'pkl' in x]
     while True:
-        filename = random.choice(graph_files)
-        graph_array = load_pickle(filename)
-        graph_choice = random.choice(graph_array)
+        # filename = random.choice(graph_files)
+        # graph_array = load_pickle(filename)
+        # graph_choice = random.choice(graph_array)
         # Create x, y from chosen graph
-        edges, embeddings, energy = graph_choice
+        edges, embeddings, energy, gt_embedding = next(sample_generator)
+        # random.shuffle(edges)
         num_nodes = embeddings.shape[0]
         avg_energy = energy/num_nodes
-        x = []
-        y = []
-        for u, v in edges:
-            dr = jnp.linalg.norm(embeddings[u]-embeddings[v])
-            x.append(dr)
-        x = jnp.array(x, dtype=jnp.float32).reshape((len(x), 1))
-        y = jnp.ones_like(x, dtype=jnp.float32) * avg_energy
-        yield x, y
+        for i in range(10):
+            x = []
+            y = []
+            edge_sample = random.sample(edges, min(len(edges), 3000))
+            for u, v in edge_sample:
+                dr = jnp.linalg.norm(embeddings[u]-embeddings[v])
+                dr_prime = jnp.abs(jnp.abs(jnp.linalg.norm(gt_embedding[u]-gt_embedding[v])) -
+                             jnp.abs(jnp.linalg.norm(embeddings[u]-embeddings[v])))
+                y.append(dr_prime)
+                x.append(dr)
+            x = jnp.vstack(x)
+            y = jnp.vstack(y)
+            yield x, y
 
 
 def net_fn(batch):
@@ -67,9 +77,11 @@ def training_loop(generator, num_iterations=1000):
 
     for i in tqdm(range(num_iterations)):
         x, y = next(generator)
-        if i % 100 == 0:
+        if i % 10 == 0:
             print(mse(params, x, y))
-            pass
+
+        if i % 100 == 1:
+            save_pickle(params, f'model_checkpoints/mlp_chk.{i}.pkl')
         grads = loss_grad_fn(params, x, y)
         updates, opt_state = optimizer.update(grads, opt_state, params)
         params = optax.apply_updates(params, updates)
@@ -78,7 +90,20 @@ def training_loop(generator, num_iterations=1000):
 
 
 if __name__ == "__main__":
-    # jax.config.update('jax_platform_name', 'cpu')
-    gen = get_batch()
-    net, params = training_loop(gen)
+    key, split = jax.random.split(jax.random.PRNGKey(7))
+    net = hk.without_apply_rng(hk.transform(net_fn))
+    params = load_pickle('energy_mlp_params.pkl')
+    x = jnp.arange(0, 1000, 10, jnp.float32)
+    x = x.reshape((x.shape[0], 1))
+    y = net.apply(params, x)
+    # params = net.init(split, init_x)
+    plt.plot(x, y)
+    plt.show()
+
+
+    # key, split = jax.random.split(key)
+    # # jax.config.update('jax_platform_name', 'cpu')
+    # gen = get_graph_batch()
+    # net, params = training_loop(gen)
+    # save_pickle(params, 'energy_mlp_params.pkl')
     print('done')
