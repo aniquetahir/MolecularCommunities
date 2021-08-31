@@ -131,16 +131,17 @@ def test_karate():
     for k, v in G.nodes.data():
         gt_communities[v['club']].append(k)
     gt_communities = list(gt_communities.values())
-    multiembeddings = get_multiembeddings(G, 100, skim=50)
+    multiembeddings = get_multiembeddings(G, 50, skim=50)
 
     mds = MDS(2)
     mds_embeddings = mds.fit_transform(np.array(multiembeddings))
     # mds_embeddings = get_minembeddings(G, 100)
-    plot_graph(mds_embeddings, gt_communities)
-    plot_graph(mds_embeddings, communities)
+    plot_graph(G, mds_embeddings, gt_communities)
+    # plot_graph(mds_embeddings, communities)
     # print('Testing Community MD')
 
 
 if __name__ == "__main__":
-    test_bc(2000)
+    test_karate()
+    # test_bc(2000)
     pass

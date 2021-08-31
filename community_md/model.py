@@ -139,7 +139,7 @@ class MolecularCommunities:
         self.bond_border_distance = 3 #@param {type:"number"}
         self.bond_intensity = 20 #@param {type:"number"}
         self.custom_morse = partial(energy.morse, sigma=1., epsilon=10., alpha=1.)
-        self.displacement, self.shift = space.periodic(box_size)
+        self.displacement, self.shift = space.free()
 
         self.r_cutoff = box_size/2.
         self.dr_threshold = box_size/8.0
@@ -208,14 +208,14 @@ class MolecularCommunities:
 
     def train(self):
         bond_en = self.get_bond_energy_fn(self.displacement, self.bonds)
-        energy_fn, neighbor_fn = self.get_energy_fn(self.displacement, self.bonds, self.box_size, self.r_cutoff, self.dr_threshold)
+        # energy_fn, neighbor_fn = self.get_energy_fn(self.displacement, self.bonds, self.box_size, self.r_cutoff, self.dr_threshold)
         R_final, max_energy = self.run_minimization(bond_en, self.R, self.shift, num_steps=self.minimization_steps)
         # print(max_energy)
         self.embeddings = R_final
         return R_final, max_energy
 
     def linear_energy(self, dr, **kwargs):
-        U = dr * 2 - 20
+        U = dr * 2
         return np.array(U, dtype=dr.dtype)
 
     def log_energy(self, dr, stretch=None, intensity=None, **kwargs):
@@ -237,7 +237,7 @@ class MolecularCommunities:
         return self.custom_morse(dr/stretch)
 
     def get_bond_energy_fn(self, displacement_or_metric, bonds, bond_type=None):
-        return smap.bond(self.lj_energy,
+        return smap.bond(self.linear_energy,
                          space.canonicalize_displacement_or_metric(displacement_or_metric),
                          bonds
                          )

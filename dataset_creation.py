@@ -3,10 +3,10 @@ from tqdm import tqdm
 
 from anique import *
 
-def generate_sample():
+def generate_sample(max_communities=50, max_community_members=200):
     synthetic_data = []
     while True:
-        G, labels = get_uniform_random_sbm(50, 200)
+        G, labels = get_uniform_random_sbm(max_communities, max_community_members)
         # 2-d embeddings
         r_embeddings = get_reduced_community_embeddings_from_gt(G, labels)
         # Get energy after perturbation
