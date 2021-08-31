@@ -87,7 +87,7 @@ def train():
         common_energy_fn = smap.pair(common_nn_fn, displacement)
 
         def combined_energy_fn(R):
-            return bond_energy_fn + common_energy_fn
+            return bond_energy_fn(R) + common_energy_fn(R)
 
         init, apply = minimize.fire_descent(combined_energy_fn, shift, dt_start=dt_start, dt_max=dt_max)
         # init(np.ones((100, 2)))
