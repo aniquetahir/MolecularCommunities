@@ -107,7 +107,9 @@ def train():
     for i in tqdm(range(num_iterations)):
         if i % 10 == 1:
             save_pickle(params, f'training_cache/simulated_nn_combined.{i}.pkl')
-            print(f'AVERAGE LOSS: {np.mean(np.hstack(loss_history[-10:]))}')
+            mean_loss = np.mean(np.hstack(loss_history[-10:]))
+            print(f'AVERAGE LOSS: {mean_loss}')
+            del mean_loss
 
         try:
             edges, perterbed_emb, energy, gt_embeddings = next(graph_generator)
