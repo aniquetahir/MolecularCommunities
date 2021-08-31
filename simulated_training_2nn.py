@@ -68,7 +68,7 @@ def train():
 
     print('Hyperparameter shape:')
     print(jax.tree_map(lambda x: x.shape, params))
-    graph_generator = generate_sample(10, 100)
+    graph_generator = generate_sample(5, 100)
     dt_start = 0.001
     dt_max = 0.004
     num_iterations = 1000
@@ -107,7 +107,7 @@ def train():
     for i in tqdm(range(num_iterations)):
         if i % 10 == 1:
             save_pickle(params, f'training_cache/simulated_nn_combined.{i}.pkl')
-            print(f'AVERAGE LOSS: {np.mean(loss_history[-10:])}')
+            print(f'AVERAGE LOSS: {np.mean(np.hstack(loss_history[-10:]))}')
 
         try:
             edges, perterbed_emb, energy, gt_embeddings = next(graph_generator)
