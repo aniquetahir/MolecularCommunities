@@ -117,6 +117,109 @@ def unindex_graph(G: nx.Graph, index_map):
     old_G.add_edges_from(old_edges)
     return old_G
 
+class FullNNMolecularCommunities:
+    def __init__(self, key, G: nx.Graph, dim=2, minimization_steps=5200, pos: np.DeviceArray = None):
+        """
+        Initialize CMD for a graph
+        :param key: jax prng key
+        :param G: networkx graph
+        :param dim: embedding dimensions
+        :param box_size: MD box
+        :param minimization_steps: epochs for MD simulation
+        """
+        self.key, self.split = random.split(key)
+        self.dim = dim
+        self.G, self.G_reindex = readjust_graph(G)
+        num_nodes = G.number_of_nodes()
+        box_size = num_nodes ** (1./dim)
+        if pos is None:
+            self.R = random.uniform(self.split, (G.number_of_nodes(), dim), minval=0, maxval=box_size, dtype=np.float64)
+        else:
+            self.R = pos
+
+        self.displacement, self.shift = space.free()
+
+        self.bonds = np.array(list(G.edges()))
+        self.minimization_steps = minimization_steps
+        self.embeddings = None
+        with open(f'2nn_dim{dim}_params.pkl', 'rb') as nn_params:
+            self.nn_params = pickle.load(nn_params)
+
+        def nn_fn(batch):
+            mlp = hk.Sequential([
+                hk.Linear(128, name='n1_l1'), jax.nn.leaky_relu,
+                hk.Linear(64, name='n1_l2'), jax.nn.leaky_relu,
+                hk.Linear(dim, name='n1_l3'), jax.nn.leaky_relu,
+            ])
+            return mlp(batch)
+
+        def nn2_fn(batch):
+            mlp = hk.Sequential([
+                hk.Linear(128, name='n2_l1'), jax.nn.leaky_relu,
+                hk.Linear(64, name='n2_l2'), jax.nn.leaky_relu,
+                hk.Linear(dim, name='n2_l3'), jax.nn.leaky_relu,
+            ])
+            return mlp(batch)
+
+        self.net1 = hk.without_apply_rng(hk.transform(nn_fn)).apply
+        self.net2 = hk.without_apply_rng(hk.transform(nn2_fn)).apply
+
+
+    def train(self):
+
+        def bond_en_fn(dr):
+            return self.net1(self.nn_params, dr)
+
+        def common_en_fn(dr):
+            return self.net2(self.nn_params, dr)
+
+        bond_en = smap.bond(bond_en_fn, self.displacement, self.bonds)
+        common_en = smap.pair(common_en_fn, self.displacement)
+
+        def energy_fn(R):
+            return bond_en(R) + common_en(R)
+
+        R_final, max_energy = self.run_minimization(energy_fn, self.R, self.shift, num_steps=self.minimization_steps)
+        # print(max_energy)
+        self.embeddings = R_final
+        return R_final, max_energy
+
+
+    def run_minimization(self, energy_fn, R_init, shift, num_steps=5000):
+        dt_start = 0.001
+        dt_max   = 0.004
+        init, apply=minimize.fire_descent(jit(energy_fn),shift,dt_start=dt_start,dt_max=dt_max)
+        apply = jit(apply)
+
+        @jit
+        def scan_fn(state, i):
+            return apply(state), 0.
+
+        state = init(R_init)
+        state, _ = lax.scan(scan_fn,state,np.arange(num_steps))
+
+        return state.position, np.amax(np.abs(-grad(energy_fn)(state.position)))
+
+    def minimization_loop(self, energy_fn, neighbor_fn, R, shift, epochs, steps_per_epoch):
+        nbrs = None # neighbor_fn(R)
+        energy_fn_nbrs = None
+        R_history = [R]
+        force_history = [0]
+        R_current = R
+        max_force = None
+        for _ in tqdm(range(epochs)):
+            if nbrs is None or nbrs.did_buffer_overflow:
+                nbrs = neighbor_fn(R)
+            else:
+                nbrs = neighbor_fn(R, nbrs)
+            energy_fn_nbrs = partial(energy_fn, neighbor=nbrs)
+            R_current, max_force = self.run_minimization(energy_fn_nbrs, R_current, shift, steps_per_epoch)
+            R_history.append(R)
+            force_history.append(max_force)
+
+        return R_current, max_force, R_history, force_history
+
+
 class NNMolecularCommunities:
     def __init__(self, key, G: nx.Graph, dim=2, box_size=1000, minimization_steps=5200, pos: np.DeviceArray = None):
         """
@@ -149,7 +252,7 @@ class NNMolecularCommunities:
             mlp = hk.Sequential([
                 hk.Linear(128), jax.nn.leaky_relu,
                 hk.Linear(64), jax.nn.leaky_relu,
-                hk.Linear(1), jax.nn.leaky_relu,
+                hk.Linear(dim), jax.nn.leaky_relu,
             ])
             return mlp(batch)
         self.net = hk.without_apply_rng(hk.transform(nn_fn)).apply
@@ -158,13 +261,11 @@ class NNMolecularCommunities:
         def bond_en(dr):
             return self.net(self.nn_params, dr)
 
-        # bond_en = self.get_bond_energy_fn(self.displacement, self.bonds)
-        # energy_fn, neighbor_fn = self.get_energy_fn(self.displacement, self.bonds, self.box_size, self.r_cutoff, self.dr_threshold)
-        R_final, max_energy = self.run_minimization(bond_en, self.R, self.shift, num_steps=self.minimization_steps)
+        energy_fn = smap.bond(bond_en, self.displacement, self.bonds)
+        R_final, max_energy = self.run_minimization(energy_fn, self.R, self.shift, num_steps=self.minimization_steps)
         # print(max_energy)
         self.embeddings = R_final
         return R_final, max_energy
-
 
     def run_minimization(self, energy_fn, R_init, shift, num_steps=5000):
         dt_start = 0.001

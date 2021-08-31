@@ -1,1 +1,1 @@
-from community_md.model import MolecularCommunities
+from community_md.model import MolecularCommunities, NNMolecularCommunities, FullNNMolecularCommunities

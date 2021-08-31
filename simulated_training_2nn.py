@@ -77,6 +77,7 @@ def train():
 
     @jit
     def loss_fn(params, x, y, bonds, energy):
+        # num_points = x.shape[0]
         def bond_nn_fn(dr):
             return net.apply(params, dr)
 
@@ -93,13 +94,17 @@ def train():
         # init(np.ones((100, 2)))
         # apply = jit(apply)
         # @jit
+        def rescale(x):
+            t = x - np.min(x, axis=0)
+            return t/np.linalg.norm(t)
+
         def scan_fn(state, i):
             return apply(state), 0.
         state = init(np.array(x, dtype=f64))
         # apply(state)
         state, _ = lax.scan(scan_fn, state, np.arange(num_fire_steps))
         num_samples = x.shape[0]
-        return (np.sum(np.square(state.position - y)))/(energy + 1)
+        return (np.sum(np.square(rescale(state.position) - rescale(y))))/num_samples
 
     loss_fn_value_grad = jax.value_and_grad(loss_fn)
 

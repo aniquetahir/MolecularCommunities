@@ -1,5 +1,5 @@
 import pickle
-from community_md import MolecularCommunities
+from community_md import FullNNMolecularCommunities as MolecularCommunities
 from collections import defaultdict
 from sklearn.manifold import MDS, TSNE
 import networkx as nx
@@ -57,6 +57,16 @@ def get_multiembeddings(G, num_embeddings, num_steps=10000, skim=-1, dim=2, g_na
         else:
             with open(hash_path, 'rb') as md_file:
                 md_embeddings, energy = pickle.load(md_file)
+
+        # gt_communities = defaultdict(list)
+        # for k, v in G.nodes.data():
+        #     gt_communities[v['club']].append(k)
+        # gt_communities = list(gt_communities.values())
+        # plot_graph(G, md_embeddings, gt_communities)
+        # input('Press enter to continue')
+        md_embeddings = md_embeddings - np.min(md_embeddings, axis=0)
+        md_embeddings = md_embeddings/np.linalg.norm(md_embeddings)
+
         all_embeddings.append(md_embeddings)
         all_energies.append(energy)
         # del md_embeddings
@@ -131,7 +141,7 @@ def test_karate():
     for k, v in G.nodes.data():
         gt_communities[v['club']].append(k)
     gt_communities = list(gt_communities.values())
-    multiembeddings = get_multiembeddings(G, 50, skim=50)
+    multiembeddings = get_multiembeddings(G, 10, skim=5)
 
     mds = MDS(2)
     mds_embeddings = mds.fit_transform(np.array(multiembeddings))
