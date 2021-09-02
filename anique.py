@@ -169,11 +169,15 @@ def get_uniform_random_sbm(community_cap: int, members_cap: int) -> (nx.Graph, n
     p = np.zeros((num_communities, num_communities))
 
     for combo in combinations(range(num_communities), 2):
-        community_edge_prob = random.random() * 0.3
+        community_edge_prob = random.random() * 0.1
         if combo[0] == combo[1]:
             min(1., community_edge_prob + 0.2 + random.random() * 0.5)
         p[combo[0], combo[1]] = community_edge_prob
         p[combo[1], combo[0]] = community_edge_prob
+
+    for i in range(num_communities):
+        community_edge_prob = random.random() * 0.1
+        p[i, i] = min(1., community_edge_prob + 0.2 + random.random() * 0.5)
 
     adj, labels = sbm(vertices_per_community, p, return_labels=True)
     G = nx.convert_matrix.from_numpy_array(adj)
@@ -218,6 +222,7 @@ def get_reduced_community_embeddings_from_gt(G, labels, dim=2, reduction_fn=TSNE
     reducer = reduction_fn(dim)
     embeddings = reducer.fit_transform(c_embeddings)
     return embeddings
+
 
 def perturb_embeddings(embedding: np.ndarray, intensity: float):
     num_samples, dim = embedding.shape

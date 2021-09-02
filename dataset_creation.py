@@ -4,7 +4,7 @@ from tqdm import tqdm
 from anique import *
 
 
-def generate_sample(max_communities=50, max_community_members=200):
+def generate_sample_with_labels(max_communities=50, max_community_members=200):
     synthetic_data = []
     while True:
         G, labels = get_uniform_random_sbm(max_communities, max_community_members)
