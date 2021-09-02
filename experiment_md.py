@@ -1,4 +1,6 @@
 import math
+
+import jax.random
 import pandas as pd
 import os
 import unittest
@@ -9,13 +11,16 @@ import networkx as nx
 from typing import Dict
 from sklearn.manifold import MDS
 from sklearn.linear_model import LogisticRegression
+from community_md import FullNNMolecularCommunities
 from itertools import combinations, product
 from test_cmd import get_multiembeddings, get_cumulative_embeddings
 import numpy as np
 # from experiment import n2v_embeddings
 import pickle
 import random
+from test_cmd import plot_graph
 from scipy import sparse
+
 
 
 # class TestPartitions(unittest.TestCase):
@@ -153,6 +158,33 @@ def evaluate_md_karate():
     save_md_embedding_combo(G, labels, g_name='karate')
     print('Done saving combos')
 
+from collections import  defaultdict
+def evaluate_md_karate_nn():
+    G = nx.karate_club_graph()
+    labels = [v['club'] for k, v in G.nodes.data()]
+    label_to_cat = {}
+    for i, v in enumerate(set(labels)):
+        label_to_cat[v] = i
+    labels = [label_to_cat[x] for x in labels]
+    gt_communties = defaultdict(list)
+    for i, label in enumerate(labels):
+        gt_communties[label].append(i)
+    gt_communties = list(gt_communties.values())
+
+    key = jax.random.PRNGKey(7)
+    for i in range(10):
+        key, split = jax.random.split(key)
+        md_system = FullNNMolecularCommunities(split, G, minimization_steps=1000)
+        fullnn_embeddings, max_energy = md_system.train()
+        # save_md_embedding_combo(G, labels, g_name='karate_fullnn')
+        acc, precision, recall, f1, support = evaluate_embedding(fullnn_embeddings, labels, sparse=False)
+        plot_graph(G, fullnn_embeddings, gt_communties)
+        print('=' * 20)
+        print(f'Acc: {acc}\n Precision: {precision}\n Recall: {recall}\n F1: {f1}')
+        print('=' * 20)
+
+    print('Done saving combos')
+
 
 def evaluate_md_blogcatalog():
     bc_mat = loadmat('blogcatalog.mat')
@@ -163,7 +195,8 @@ def evaluate_md_blogcatalog():
 
 
 if __name__ == "__main__":
-    evaluate_md_blogcatalog()
+    evaluate_md_karate_nn()
+    # evaluate_md_blogcatalog()
     # bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
     # G = nx.from_scipy_sparse_matrix(bc_mat['network'])
     # labels = bc_mat['group']

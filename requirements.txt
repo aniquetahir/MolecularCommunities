@@ -13,3 +13,4 @@ flax
 optax
 trax
 dm-haiku
+fa2

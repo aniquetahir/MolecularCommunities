@@ -3,6 +3,20 @@ from tqdm import tqdm
 
 from anique import *
 
+
+def generate_sample(max_communities=50, max_community_members=200):
+    synthetic_data = []
+    while True:
+        G, labels = get_uniform_random_sbm(max_communities, max_community_members)
+        # 2-d embeddings
+        r_embeddings = get_reduced_community_embeddings_from_gt(G, labels)
+        # Get energy after perturbation
+        perturb_intensity = random.choice([0, 1000, 100])
+        pert_embeddings, energy = perturb_embeddings(r_embeddings, perturb_intensity)
+        yield list(G.edges), pert_embeddings, energy, r_embeddings, labels
+        del G, labels, pert_embeddings, r_embeddings
+
+
 def generate_sample(max_communities=50, max_community_members=200):
     synthetic_data = []
     while True:
@@ -14,7 +28,6 @@ def generate_sample(max_communities=50, max_community_members=200):
         pert_embeddings, energy = perturb_embeddings(r_embeddings, perturb_intensity)
         yield list(G.edges), pert_embeddings, energy, r_embeddings
         del G, labels, pert_embeddings, r_embeddings
-
 
 
 if __name__ == "__main__":

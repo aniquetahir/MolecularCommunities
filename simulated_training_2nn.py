@@ -33,16 +33,16 @@ from dataset_creation import generate_sample
 
 def net_fn(batch):
     net = hk.Sequential([
-        hk.Linear(128, name='n1_l1'), jax.nn.leaky_relu,
-        hk.Linear(64, name='n1_l2'), jax.nn.leaky_relu,
+        hk.Linear(256, name='n1_l1'), jax.nn.leaky_relu,
+        hk.Linear(128, name='n1_l2'), jax.nn.leaky_relu,
         hk.Linear(DIM, name='n1_l3')
     ])
     return net(batch)
 
 def net2_fn(batch):
     net = hk.Sequential([
-        hk.Linear(128, name='n2_l1'), jax.nn.leaky_relu,
-        hk.Linear(64, name='n2_l2'), jax.nn.leaky_relu,
+        hk.Linear(256, name='n2_l1'), jax.nn.leaky_relu,
+        hk.Linear(128, name='n2_l2'), jax.nn.leaky_relu,
         hk.Linear(DIM, name='n2_l3')
     ])
     return net(batch)
@@ -62,7 +62,7 @@ def train():
     params2 = net2.init(split, np.ones((100, dim)))
     params = hk.data_structures.merge(params1, params2)
 
-    optimizer = optax.adamw(1e-3)
+    optimizer = optax.adamw(1e-5)
     opt_state = optimizer.init(params)
     # opt_state2 = optimizer.init(params2)
 

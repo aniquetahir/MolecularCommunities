@@ -147,16 +147,16 @@ class FullNNMolecularCommunities:
 
         def nn_fn(batch):
             mlp = hk.Sequential([
-                hk.Linear(128, name='n1_l1'), jax.nn.leaky_relu,
-                hk.Linear(64, name='n1_l2'), jax.nn.leaky_relu,
+                hk.Linear(256, name='n1_l1'), jax.nn.leaky_relu,
+                hk.Linear(128, name='n1_l2'), jax.nn.leaky_relu,
                 hk.Linear(dim, name='n1_l3'), jax.nn.leaky_relu,
             ])
             return mlp(batch)
 
         def nn2_fn(batch):
             mlp = hk.Sequential([
-                hk.Linear(128, name='n2_l1'), jax.nn.leaky_relu,
-                hk.Linear(64, name='n2_l2'), jax.nn.leaky_relu,
+                hk.Linear(256, name='n2_l1'), jax.nn.leaky_relu,
+                hk.Linear(128, name='n2_l2'), jax.nn.leaky_relu,
                 hk.Linear(dim, name='n2_l3'), jax.nn.leaky_relu,
             ])
             return mlp(batch)
