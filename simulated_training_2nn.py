@@ -29,24 +29,63 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 DIM = 2
-from dataset_creation import generate_sample
+from dataset_creation import generate_sample_with_labels
+
+
+@jit
+def elite_rescale(x: np.ndarray) -> np.ndarray:
+    a = x - np.min(x, axis=0)
+    a = a/np.max(a, axis=0)
+    return np.nan_to_num(a)
+
+
+def dropout_fn(x):
+    return hk.dropout(hk.next_rng_key(), 0.5, x)
+
 
 def net_fn(batch):
     net = hk.Sequential([
-        hk.Linear(256, name='n1_l1'), jax.nn.leaky_relu,
-        hk.Linear(128, name='n1_l2'), jax.nn.leaky_relu,
+        hk.Linear(256, name='n1_l1'), jax.nn.leaky_relu, dropout_fn,
+        hk.Linear(128, name='n1_l2'), jax.nn.leaky_relu, dropout_fn,
         hk.Linear(DIM, name='n1_l3')
     ])
     return net(batch)
 
+
 def net2_fn(batch):
     net = hk.Sequential([
-        hk.Linear(256, name='n2_l1'), jax.nn.leaky_relu,
-        hk.Linear(128, name='n2_l2'), jax.nn.leaky_relu,
+        hk.Linear(256, name='n2_l1'), jax.nn.leaky_relu, dropout_fn,
+        hk.Linear(128, name='n2_l2'), jax.nn.leaky_relu, dropout_fn,
         hk.Linear(DIM, name='n2_l3')
     ])
     return net(batch)
 
+
+def community_coexistence_matrix(labels):
+    num_samples = len(labels)
+    coexistence_matrix = onp.zeros((num_samples, num_samples))
+    for i in range(num_samples):
+        for j in range(num_samples):
+            if labels[i] == labels[j]:
+                coexistence_matrix[i, j] = 1
+    return coexistence_matrix
+
+
+@jit
+def loss_metric(displacement, embeddings, coexistence_matrix):
+    product_map = space.map_product(displacement)
+
+
+    def get_norms(R):
+        return np.linalg.norm(product_map(R, R), axis=2)
+
+    all_distances = get_norms(embeddings)
+    intra_community_distances = all_distances * coexistence_matrix
+    inter_community_distances = all_distances * (1 - coexistence_matrix)
+    mean_intra = np.sum(intra_community_distances) / np.sum(coexistence_matrix)
+    mean_inter = np.sum(inter_community_distances) / np.sum(1 - coexistence_matrix)
+
+    pass
 
 
 def train():
@@ -54,8 +93,8 @@ def train():
     num_fire_steps = 100
     key = jax.random.PRNGKey(7)
     key, split = jax.random.split(key)
-    net = hk.without_apply_rng(hk.transform(net_fn))
-    net2 = hk.without_apply_rng(hk.transform(net2_fn))
+    net = hk.transform(net_fn)
+    net2 = hk.transform(net2_fn)
 
     params1 = net.init(split, np.ones((100, dim)))
     key, split = jax.random.split(key)
@@ -68,7 +107,7 @@ def train():
 
     print('Hyperparameter shape:')
     print(jax.tree_map(lambda x: x.shape, params))
-    graph_generator = generate_sample(5, 100)
+    graph_generator = generate_sample_with_labels(5, 100)
     dt_start = 0.001
     dt_max = 0.004
     num_iterations = 1000
@@ -76,13 +115,14 @@ def train():
 
 
     @jit
-    def loss_fn(params, x, y, bonds, energy):
+    def loss_fn(params, x, y, bonds, energy, key, community_matrix=None):
+        key, split = jax.random.split(key)
         # num_points = x.shape[0]
         def bond_nn_fn(dr):
-            return net.apply(params, dr)
+            return net.apply(params, split, dr)
 
         def common_nn_fn(dr):
-            return net2.apply(params, dr)
+            return net2.apply(params, split, dr)
 
         bond_energy_fn = smap.bond(bond_nn_fn, displacement, bonds)
         common_energy_fn = smap.pair(common_nn_fn, displacement)
@@ -104,7 +144,7 @@ def train():
         # apply(state)
         state, _ = lax.scan(scan_fn, state, np.arange(num_fire_steps))
         num_samples = x.shape[0]
-        return (np.sum(np.square(rescale(state.position) - rescale(y))))/num_samples
+        return (np.sum(np.square(elite_rescale(state.position) - elite_rescale(y))))/num_samples
 
     loss_fn_value_grad = jax.value_and_grad(loss_fn)
 
@@ -117,10 +157,11 @@ def train():
             del mean_loss
 
         try:
-            edges, perterbed_emb, energy, gt_embeddings = next(graph_generator)
+            edges, perterbed_emb, energy, gt_embeddings, labels = next(graph_generator)
             # loss_fn(params, np.array(perterbed_emb, f64), np.array(gt_embeddings, f64), np.array(edges))
+            key, split = jax.random.split(key)
             loss_value, grads = loss_fn_value_grad(params, np.array(perterbed_emb, f64), np.array(gt_embeddings, dtype=f64),
-                                                   np.array(edges), energy)
+                                                   np.array(edges), energy, split)
             loss_history.append(loss_value)
             print(f"Loss: {loss_value}")
             updates, opt_state = optimizer.update(grads, opt_state, params)
