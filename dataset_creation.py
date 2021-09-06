@@ -1,7 +1,17 @@
 import random
 from tqdm import tqdm
-
+import jax
+import networkx as nx
 from anique import *
+
+
+def generate_training_samples(max_communities=50, max_community_members=200):
+    key = jax.random.PRNGKey(7)
+    while True:
+        G, labels = get_uniform_random_sbm(max_communities, max_community_members)
+        key, split = jax.random.split(key)
+        r_embeddings = jax.random.uniform(key, (G.number_of_nodes(), 2), maxval=10.)
+        yield list(G.edges), r_embeddings, labels
 
 
 def generate_sample_with_labels(max_communities=50, max_community_members=200):

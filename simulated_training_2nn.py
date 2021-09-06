@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 DIM = 2
-from dataset_creation import generate_sample_with_labels
+from dataset_creation import generate_sample_with_labels, generate_training_samples
 
 
 @jit
@@ -71,23 +71,6 @@ def community_coexistence_matrix(labels):
     return coexistence_matrix
 
 
-@jit
-def loss_metric(displacement, embeddings, coexistence_matrix):
-    product_map = space.map_product(displacement)
-
-
-    def get_norms(R):
-        return np.linalg.norm(product_map(R, R), axis=2)
-
-    all_distances = get_norms(embeddings)
-    intra_community_distances = all_distances * coexistence_matrix
-    inter_community_distances = all_distances * (1 - coexistence_matrix)
-    mean_intra = np.sum(intra_community_distances) / np.sum(coexistence_matrix)
-    mean_inter = np.sum(inter_community_distances) / np.sum(1 - coexistence_matrix)
-
-    pass
-
-
 def train():
     dim = DIM
     num_fire_steps = 100
@@ -107,17 +90,38 @@ def train():
 
     print('Hyperparameter shape:')
     print(jax.tree_map(lambda x: x.shape, params))
-    graph_generator = generate_sample_with_labels(5, 100)
+    graph_generator = generate_training_samples(5, 100)  # generate_sample_with_labels(5, 100)
     dt_start = 0.001
     dt_max = 0.004
     num_iterations = 1000
     displacement, shift = space.free()
 
 
-    @jit
-    def loss_fn(params, x, y, bonds, energy, key, community_matrix=None):
+    def loss_metric(embeddings, coexistence_matrix):
+        product_map = space.map_product(displacement)
+
+        def get_norms(pm):
+            return np.linalg.norm(pm, axis=2)
+
+        def sec_norm(R):
+            pmap = product_map(R, R)
+            return get_norms(pmap)
+
+        all_distances = np.abs(sec_norm(embeddings))
+        num_intra = np.sum(coexistence_matrix)
+        num_inter = np.sum(1 - coexistence_matrix)
+
+        intra_community_distances = all_distances * coexistence_matrix
+        inter_community_distances = all_distances * (1 - coexistence_matrix)
+        mean_intra = np.sum(intra_community_distances) / num_intra
+        mean_inter = np.sum(inter_community_distances) / num_inter
+        return mean_intra - mean_inter
+
+    # @jit
+    def loss_fn(params, x, bonds, key, community_matrix):
         key, split = jax.random.split(key)
         # num_points = x.shape[0]
+
         def bond_nn_fn(dr):
             return net.apply(params, split, dr)
 
@@ -140,11 +144,13 @@ def train():
 
         def scan_fn(state, i):
             return apply(state), 0.
+
         state = init(np.array(x, dtype=f64))
         # apply(state)
         state, _ = lax.scan(scan_fn, state, np.arange(num_fire_steps))
-        num_samples = x.shape[0]
-        return (np.sum(np.square(elite_rescale(state.position) - elite_rescale(y))))/num_samples
+        # num_samples = x.shape[0]
+        # return (np.sum(np.square(elite_rescale(state.position) - elite_rescale(y))))/num_samples
+        return loss_metric(state.position, community_matrix)
 
     loss_fn_value_grad = jax.value_and_grad(loss_fn)
 
@@ -157,22 +163,24 @@ def train():
             del mean_loss
 
         try:
-            edges, perterbed_emb, energy, gt_embeddings, labels = next(graph_generator)
+            # edges, perterbed_emb, energy, gt_embeddings, labels = next(graph_generator)
             # loss_fn(params, np.array(perterbed_emb, f64), np.array(gt_embeddings, f64), np.array(edges))
+            edges, perturbed_emb, labels = next(graph_generator)
             key, split = jax.random.split(key)
-            loss_value, grads = loss_fn_value_grad(params, np.array(perterbed_emb, f64), np.array(gt_embeddings, dtype=f64),
-                                                   np.array(edges), energy, split)
+            cm = community_coexistence_matrix(labels)
+            loss_value, grads = loss_fn_value_grad(params, np.array(perturbed_emb, f64),
+                                                   np.array(edges), split, cm)
             loss_history.append(loss_value)
             print(f"Loss: {loss_value}")
             updates, opt_state = optimizer.update(grads, opt_state, params)
             params = optax.apply_updates(params, updates)
-            del grads, edges, perterbed_emb, energy, gt_embeddings, updates
+            del grads, edges, perturbed_emb, updates
         except Exception as e:
             print(e)
             input()
-            print(perterbed_emb)
+            print(perturbed_emb)
             input()
-            print(gt_embeddings)
+            # print(gt_embeddings)
 
     return params
 
