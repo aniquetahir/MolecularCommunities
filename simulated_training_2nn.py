@@ -84,7 +84,7 @@ def train():
     params2 = net2.init(split, np.ones((100, dim)))
     params = hk.data_structures.merge(params1, params2)
 
-    optimizer = optax.adamw(1e-5)
+    optimizer = optax.adamw(1e-3)
     opt_state = optimizer.init(params)
     # opt_state2 = optimizer.init(params2)
 
@@ -96,16 +96,14 @@ def train():
     num_iterations = 1000
     displacement, shift = space.free()
 
-
+    @jit
     def loss_metric(embeddings, coexistence_matrix):
         product_map = space.map_product(displacement)
 
-        def get_norms(pm):
-            return np.linalg.norm(pm, axis=2)
-
         def sec_norm(R):
             pmap = product_map(R, R)
-            return get_norms(pmap)
+            pmap = np.where(pmap == 0, 0.0001, pmap)
+            return np.linalg.norm(pmap, axis=2)
 
         all_distances = np.abs(sec_norm(embeddings))
         num_intra = np.sum(coexistence_matrix)
@@ -117,7 +115,7 @@ def train():
         mean_inter = np.sum(inter_community_distances) / num_inter
         return mean_intra - mean_inter
 
-    # @jit
+    @jit
     def loss_fn(params, x, bonds, key, community_matrix):
         key, split = jax.random.split(key)
         # num_points = x.shape[0]

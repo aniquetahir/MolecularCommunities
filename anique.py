@@ -169,7 +169,7 @@ def get_uniform_random_sbm(community_cap: int, members_cap: int) -> (nx.Graph, n
     p = np.zeros((num_communities, num_communities))
 
     for combo in combinations(range(num_communities), 2):
-        community_edge_prob = random.random() * 0 # TODO make this higher
+        community_edge_prob = random.random() #  * 0 # TODO make this higher
         p[combo[0], combo[1]] = community_edge_prob
         p[combo[1], combo[0]] = community_edge_prob
 
