@@ -5,6 +5,8 @@ import networkx as nx
 from sklearn.manifold import MDS, Isomap, TSNE
 from sklearn.decomposition import TruncatedSVD, PCA, KernelPCA
 from scipy.io import loadmat
+from community_md import FullNNMolecularCommunities
+import jax
 
 
 # def get_distance_matrix(G: nx.Graph, labels):
@@ -33,13 +35,21 @@ from scipy.io import loadmat
 
 if __name__ == "__main__":
     #Create a random graph
-    print('Creating Graph')
-    G, labels = get_uniform_random_sbm(50, 100)
-    print('Getting embeddings')
-    r_embeddings = get_community_embeddings_from_gt(G, labels)
-    print('Reducing and plotting embeddings')
-    plot_reduced_embedding(G, r_embeddings, labels, TSNE)
-    # See blogcatalog
+    key = jax.random.PRNGKey(8)
+    while True:
+        print('Creating Graph')
+        G, labels = get_uniform_random_sbm(5, 100)
+        print('Getting embeddings')
+        key, split = jax.random.split(key)
+        model = FullNNMolecularCommunities(split, G, minimization_steps=100)
+        embeddings, energy = model.train()
+        # r_embeddings = get_community_embeddings_from_gt(G, labels)
+        print('Reducing and plotting embeddings')
+        plot_graph(G, embeddings, labelled_data_to_groups(labels))
+        input('Press enter to continue')
+        # plot_reduced_embedding(G, embeddings, labels, TSNE)
+
+        # See blogcatalog
     # bc_mat = loadmat('blogcatalog.mat')
     # G = nx.from_scipy_sparse_matrix(bc_mat['network'])
     #

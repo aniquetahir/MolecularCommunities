@@ -6,6 +6,7 @@ import haiku as hk
 import optax
 
 from anique import *
+import os
 
 import jax.numpy as np
 from jax import random
@@ -29,7 +30,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 DIM = 2
-from dataset_creation import generate_sample_with_labels, generate_training_samples
+from dataset_creation import generate_sample_with_labels, generate_training_samples, generate_dcsbm_samples
 
 
 @jit
@@ -79,10 +80,14 @@ def train():
     net = hk.transform(net_fn)
     net2 = hk.transform(net2_fn)
 
-    params1 = net.init(split, np.ones((100, dim)))
-    key, split = jax.random.split(key)
-    params2 = net2.init(split, np.ones((100, dim)))
-    params = hk.data_structures.merge(params1, params2)
+    params = None
+    if os.path.exists('2nn_dim2_params.pkl'):
+        params1 = net.init(split, np.ones((100, dim)))
+        key, split = jax.random.split(key)
+        params2 = net2.init(split, np.ones((100, dim)))
+        params = hk.data_structures.merge(params1, params2)
+    else:
+        params = load_pickle('2nn_dim2_params.pkl')
 
     optimizer = optax.adamw(1e-3)
     opt_state = optimizer.init(params)
@@ -90,7 +95,7 @@ def train():
 
     print('Hyperparameter shape:')
     print(jax.tree_map(lambda x: x.shape, params))
-    graph_generator = generate_training_samples(5, 100)  # generate_sample_with_labels(5, 100)
+    graph_generator = generate_dcsbm_samples(5, 100) # generate_training_samples(5, 100)  # generate_sample_with_labels(5, 100)
     dt_start = 0.001
     dt_max = 0.004
     num_iterations = 1000
