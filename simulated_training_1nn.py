@@ -53,15 +53,6 @@ def net_fn(batch):
     return net(batch)
 
 
-def net2_fn(batch):
-    net = hk.Sequential([
-        hk.Linear(256, name='n2_l1'), jax.nn.leaky_relu, dropout_fn,
-        hk.Linear(128, name='n2_l2'), jax.nn.leaky_relu, dropout_fn,
-        hk.Linear(DIM, name='n2_l3')
-    ])
-    return net(batch)
-
-
 def community_coexistence_matrix(labels):
     num_samples = len(labels)
     coexistence_matrix = onp.zeros((num_samples, num_samples))
@@ -78,16 +69,13 @@ def train():
     key = jax.random.PRNGKey(7)
     key, split = jax.random.split(key)
     net = hk.transform(net_fn)
-    net2 = hk.transform(net2_fn)
+    # net2 = hk.transform(net2_fn)
 
     params = None
-    if os.path.exists('2nn_dim2_params.pkl'):
-        params1 = net.init(split, np.ones((100, dim)))
-        key, split = jax.random.split(key)
-        params2 = net2.init(split, np.ones((100, dim)))
-        params = hk.data_structures.merge(params1, params2)
+    if not os.path.exists('1nn_dim2_params.pkl'):
+        params = net.init(split, np.ones((100, dim)))
     else:
-        params = load_pickle('2nn_dim2_params.pkl')
+        params = load_pickle('1nn_dim2_params.pkl')
 
     optimizer = optax.adamw(1e-3)
     opt_state = optimizer.init(params)
@@ -128,16 +116,16 @@ def train():
         def bond_nn_fn(dr):
             return net.apply(params, split, dr)
 
-        def common_nn_fn(dr):
-            return net2.apply(params, split, dr)
+        # def common_nn_fn(dr):
+        #     return net2.apply(params, split, dr)
 
         bond_energy_fn = smap.bond(bond_nn_fn, displacement, bonds)
-        common_energy_fn = smap.pair(common_nn_fn, displacement)
+        # common_energy_fn = smap.pair(common_nn_fn, displacement)
 
-        def combined_energy_fn(R):
-            return bond_energy_fn(R) + common_energy_fn(R)
+        # def combined_energy_fn(R):
+        #     return bond_energy_fn(R) + common_energy_fn(R)
 
-        init, apply = minimize.fire_descent(combined_energy_fn, shift, dt_start=dt_start, dt_max=dt_max)
+        init, apply = minimize.fire_descent(bond_energy_fn, shift, dt_start=dt_start, dt_max=dt_max)
         # init(np.ones((100, 2)))
         # apply = jit(apply)
         # @jit
@@ -190,5 +178,5 @@ def train():
 
 if __name__ == "__main__":
     params = train()
-    save_pickle(params, '2nn_dim2_params.pkl')
+    save_pickle(params, '1nn_dim2_params.pkl')
     pass
