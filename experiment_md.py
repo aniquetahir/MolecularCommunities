@@ -4,7 +4,7 @@ import jax.random
 import pandas as pd
 import os
 import unittest
-
+from tqdm import tqdm
 from sklearn import metrics
 from scipy.io import loadmat
 import networkx as nx
@@ -20,7 +20,7 @@ import pickle
 import random
 from test_cmd import plot_graph
 from scipy import sparse
-
+from anique import *
 
 
 # class TestPartitions(unittest.TestCase):
@@ -72,6 +72,47 @@ def evaluate_embedding(embedding, oh_labels, folds=10, sparse=True, average='mic
     accuracy = metrics.accuracy_score(test_label_sets, test_prediction_sets)
     # 10 fold validation
     return accuracy, precision, recall, fscore, support
+
+
+def get_subset(G: nx.Graph, labels, num_samples, sparse=False):
+    nodes = list(G.nodes)
+    if num_samples > G.number_of_nodes():
+        return G, labels
+    m_labels = labels
+    if sparse:
+        m_labels = onehot_to_cat(m_labels)
+    removal_nodes = random.sample(nodes, max(0, G.number_of_nodes() - num_samples))
+    new_G = G.copy(G)
+    new_G.remove_nodes_from(removal_nodes)
+    new_labels = []
+
+    for i in nodes:
+        if i not in removal_nodes:
+            new_labels.append(m_labels[i])
+
+    new_G, _ = readjust_graph(new_G)
+    return new_G, new_labels
+
+
+def evaluate_bc_nn_sample(sample_size=1000, num_runs=10):
+    label_stats = defaultdict(int)
+    bc_mat = loadmat('blogcatalog.mat')
+    G = nx.from_scipy_sparse_matrix(bc_mat['network'])
+    labels = bc_mat['group']
+    G, labels = get_subset(G, labels, sample_size, sparse=True)
+    for label in labels:
+        label_stats[label] += 1
+    print(label_stats)
+    random.seed(5)
+    key = jax.random.PRNGKey(5)
+    for i in range(num_runs):
+        key, split = jax.random.split(key)
+        model = FullNNMolecularCommunities(split, G, minimization_steps=1000)
+        embeddings, energy = model.train()
+        acc, pre, recall, fscore, support = evaluate_embedding(embeddings, labels)
+        print('=' * 20)
+        print(f'Acc: {acc}\nPre: {pre}\nRecall: {recall}\nF-score: {fscore}')
+        print('=' * 20)
 
 
 def iter_params(params: Dict):
@@ -158,12 +199,15 @@ def evaluate_md_karate():
     save_md_embedding_combo(G, labels, g_name='karate')
     print('Done saving combos')
 
+
 from collections import  defaultdict
+
+
 def evaluate_md_karate_nn():
     G = nx.karate_club_graph()
     labels = [v['club'] for k, v in G.nodes.data()]
     label_to_cat = {}
-    for i, v in enumerate(set(labels)):
+    for i, v in tqdm(enumerate(set(labels))):
         label_to_cat[v] = i
     labels = [label_to_cat[x] for x in labels]
     gt_communties = defaultdict(list)
@@ -182,7 +226,7 @@ def evaluate_md_karate_nn():
         print('=' * 20)
         print(f'Acc: {acc}\n Precision: {precision}\n Recall: {recall}\n F1: {f1}')
         print('=' * 20)
-
+    # Completed combos
     print('Done saving combos')
 
 
@@ -193,9 +237,10 @@ def evaluate_md_blogcatalog():
     save_md_embedding_combo(G, labels, g_name='bc', sparse_labels=True)
 
 
-
 if __name__ == "__main__":
-    evaluate_md_karate_nn()
+    evaluate_bc_nn_sample()
+    # evaluate_md_karate_nn()
+    # evaluate_md_blogcatalog()
     # evaluate_md_blogcatalog()
     # bc_mat = loadmat('/dmml_pool/datasets/graph/blogcatalog.mat')
     # G = nx.from_scipy_sparse_matrix(bc_mat['network'])
