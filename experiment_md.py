@@ -107,9 +107,9 @@ def evaluate_bc_nn_sample(sample_size=1000, num_runs=10):
     key = jax.random.PRNGKey(5)
     for i in range(num_runs):
         key, split = jax.random.split(key)
-        model = FullNNMolecularCommunities(split, G, minimization_steps=1000)
+        model = FullNNMolecularCommunities(split, G, minimization_steps=1000, use_neighborlist=True)
         embeddings, energy = model.train()
-        acc, pre, recall, fscore, support = evaluate_embedding(embeddings, labels)
+        acc, pre, recall, fscore, support = evaluate_embedding(embeddings, labels, sparse=False)
         print('=' * 20)
         print(f'Acc: {acc}\nPre: {pre}\nRecall: {recall}\nF-score: {fscore}')
         print('=' * 20)
@@ -238,7 +238,7 @@ def evaluate_md_blogcatalog():
 
 
 if __name__ == "__main__":
-    evaluate_bc_nn_sample()
+    evaluate_bc_nn_sample(sample_size=100)
     # evaluate_md_karate_nn()
     # evaluate_md_blogcatalog()
     # evaluate_md_blogcatalog()

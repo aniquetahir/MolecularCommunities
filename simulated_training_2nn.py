@@ -99,63 +99,7 @@ def train():
     dt_start = 0.001
     dt_max = 0.004
     num_iterations = 1000
-    displacement, shift = space.free()
 
-    @jit
-    def loss_metric(embeddings, coexistence_matrix):
-        product_map = space.map_product(displacement)
-
-        def sec_norm(R):
-            pmap = product_map(R, R)
-            pmap = np.where(pmap == 0, 0.0001, pmap)
-            return np.linalg.norm(pmap, axis=2)
-
-        all_distances = np.abs(sec_norm(embeddings))
-        num_intra = np.sum(coexistence_matrix)
-        num_inter = np.sum(1 - coexistence_matrix)
-
-        intra_community_distances = all_distances * coexistence_matrix
-        inter_community_distances = all_distances * (1 - coexistence_matrix)
-        mean_intra = np.sum(intra_community_distances) / num_intra
-        mean_inter = np.sum(inter_community_distances) / num_inter
-        return mean_intra - mean_inter
-
-    @jit
-    def loss_fn(params, x, bonds, key, community_matrix):
-        key, split = jax.random.split(key)
-        # num_points = x.shape[0]
-
-        def bond_nn_fn(dr):
-            return net.apply(params, split, dr)
-
-        def common_nn_fn(dr):
-            return net2.apply(params, split, dr)
-
-        bond_energy_fn = smap.bond(bond_nn_fn, displacement, bonds)
-        common_energy_fn = smap.pair(common_nn_fn, displacement)
-
-        def combined_energy_fn(R):
-            return bond_energy_fn(R) + common_energy_fn(R)
-
-        init, apply = minimize.fire_descent(combined_energy_fn, shift, dt_start=dt_start, dt_max=dt_max)
-        # init(np.ones((100, 2)))
-        # apply = jit(apply)
-        # @jit
-        def rescale(x):
-            t = x - np.min(x, axis=0)
-            return t/np.linalg.norm(t)
-
-        def scan_fn(state, i):
-            return apply(state), 0.
-
-        state = init(np.array(x, dtype=f64))
-        # apply(state)
-        state, _ = lax.scan(scan_fn, state, np.arange(num_fire_steps))
-        # num_samples = x.shape[0]
-        # return (np.sum(np.square(elite_rescale(state.position) - elite_rescale(y))))/num_samples
-        return loss_metric(state.position, community_matrix)
-
-    loss_fn_value_grad = jax.value_and_grad(loss_fn)
 
     loss_history = []
     for i in tqdm(range(num_iterations)):
@@ -168,7 +112,67 @@ def train():
         try:
             # edges, perterbed_emb, energy, gt_embeddings, labels = next(graph_generator)
             # loss_fn(params, np.array(perterbed_emb, f64), np.array(gt_embeddings, f64), np.array(edges))
-            edges, perturbed_emb, labels = next(graph_generator)
+            edges, perturbed_emb, labels, num_nodes = next(graph_generator)
+
+            displacement, shift = space.periodic(num_nodes ** (1./DIM), wrapped=False) # space.free()
+
+            @jit
+            def loss_metric(embeddings, coexistence_matrix):
+                product_map = space.map_product(displacement)
+
+                def sec_norm(R):
+                    pmap = product_map(R, R)
+                    pmap = np.where(pmap == 0, 0.0001, pmap)
+                    return np.linalg.norm(pmap, axis=2)
+
+                all_distances = np.abs(sec_norm(embeddings))
+                num_intra = np.sum(coexistence_matrix)
+                num_inter = np.sum(1 - coexistence_matrix)
+
+                intra_community_distances = all_distances * coexistence_matrix
+                inter_community_distances = all_distances * (1 - coexistence_matrix)
+                mean_intra = np.sum(intra_community_distances) / num_intra
+                mean_inter = np.sum(inter_community_distances) / num_inter
+                return mean_intra - mean_inter
+
+            @jit
+            def loss_fn(params, x, bonds, key, community_matrix):
+                key, split = jax.random.split(key)
+                # num_points = x.shape[0]
+
+                def bond_nn_fn(dr):
+                    return net.apply(params, split, dr)
+
+                def common_nn_fn(dr):
+                    return net2.apply(params, split, dr)
+
+                bond_energy_fn = smap.bond(bond_nn_fn, displacement, bonds)
+                common_energy_fn = smap.pair(common_nn_fn, displacement)
+
+                def combined_energy_fn(R):
+                    return bond_energy_fn(R) + common_energy_fn(R)
+
+                init, apply = minimize.fire_descent(combined_energy_fn, shift, dt_start=dt_start, dt_max=dt_max)
+                # init(np.ones((100, 2)))
+                # apply = jit(apply)
+                # @jit
+                def rescale(x):
+                    t = x - np.min(x, axis=0)
+                    return t/np.linalg.norm(t)
+
+                def scan_fn(state, i):
+                    return apply(state), 0.
+
+                state = init(np.array(x, dtype=f64))
+                # apply(state)
+                state, _ = lax.scan(scan_fn, state, np.arange(num_fire_steps))
+                # num_samples = x.shape[0]
+                # return (np.sum(np.square(elite_rescale(state.position) - elite_rescale(y))))/num_samples
+                return loss_metric(state.position, community_matrix)
+
+            loss_fn_value_grad = jax.value_and_grad(loss_fn)
+
+
             key, split = jax.random.split(key)
             cm = community_coexistence_matrix(labels)
             loss_value, grads = loss_fn_value_grad(params, np.array(perturbed_emb, f64),

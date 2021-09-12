@@ -31,7 +31,7 @@ def generate_dcsbm_samples(max_communities=50, max_community_members=200):
         key, split = jax.random.split(key)
         num_nodes = G.number_of_nodes()
         random_embeddings = jax.random.uniform(split, (num_nodes, 2), maxval=jnp.sqrt(num_nodes))
-        yield list(G.edges), random_embeddings, labels
+        yield list(G.edges), random_embeddings, labels, num_nodes
 
 
 

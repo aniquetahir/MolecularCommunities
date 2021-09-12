@@ -11,6 +11,7 @@ from jax import jit, grad, vmap, value_and_grad
 from jax import lax
 from jax import ops
 from typing import Dict
+from simulated_training_1nn import elite_rescale
 
 from jax.config import config
 
@@ -134,12 +135,13 @@ class FullNNMolecularCommunities:
         self.G, self.G_reindex = readjust_graph(G)
         num_nodes = G.number_of_nodes()
         box_size = num_nodes ** (1./dim)
+        self.box_size = box_size
         if pos is None:
             self.R = random.uniform(self.split, (G.number_of_nodes(), dim), minval=0, maxval=box_size, dtype=np.float64)
         else:
             self.R = pos
 
-        self.displacement, self.shift = space.free()
+        self.displacement, self.shift = space.periodic(box_size, wrapped=False) # space.free()
 
         self.bonds = np.array(list(G.edges()))
         self.minimization_steps = minimization_steps
@@ -184,8 +186,8 @@ class FullNNMolecularCommunities:
         common_en = smap.pair(common_en_fn, self.displacement)
         common_en_nbr = smap.pair_neighbor_list(common_en_fn, self.displacement)
 
-        def energy_fn_nbrs(R):
-            return bond_en(R) + common_en_nbr(R)
+        def energy_fn_nbrs(R, neighbor):
+            return bond_en(R) + common_en_nbr(R, neighbor=neighbor)
 
         def energy_fn(R):
             return bond_en(R) + common_en(R)
@@ -202,6 +204,9 @@ class FullNNMolecularCommunities:
         dt_start = 0.001
         dt_max   = 0.004
         init, apply=minimize.fire_descent(jit(energy_fn),shift,dt_start=dt_start,dt_max=dt_max)
+        if self.use_neighborlist:
+            init_nbrs = nbr_fn(R_init)
+            init, apply = minimize.fire_descent(partial(energy_fn, neighbor=init_nbrs), shift, dt_start=dt_start, dt_max=dt_max)
         apply = jit(apply)
 
         @jit
@@ -210,14 +215,20 @@ class FullNNMolecularCommunities:
 
         @jit
         def scan_fn_nbrs(state, i):
-            nbrs = state['nbrs']
-            if i % 10 == 1:
-                nbrs = nbr_fn(state.position, state['nbrs'])
+            nbrs = lax.cond(
+                np.equal(np.mod(i, 10), 0),
+                lambda x: nbr_fn(state['state'].position, x),
+                lambda x: x, state['nbrs'])
+            # nbrs = state['nbrs']
+            # if np.mod(i, 10) == 1:
+            #     nbrs = nbr_fn(state.position, state['nbrs'])
             _, apply = minimize.fire_descent(partial(energy_fn, neighbor=nbrs), shift, dt_start=dt_start, dt_max=dt_max)
+            # keep nodes inside box
+            # state['state'].position = ( (elite_rescale(state['state'].position) * 0.9) + 0.05 ) * self.box_size
             return {'state': apply(state['state']), 'nbrs': nbrs}, 0
 
-        if self.use_neighborlist:
-            init_nbrs = nbr_fn(R_init)
+        # if self.use_neighborlist:
+        #    init_nbrs = nbr_fn(R_init)
 
         state = init(R_init)
         if nbr_fn is None:
