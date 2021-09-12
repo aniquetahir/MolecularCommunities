@@ -118,7 +118,8 @@ def unindex_graph(G: nx.Graph, index_map):
     return old_G
 
 class FullNNMolecularCommunities:
-    def __init__(self, key, G: nx.Graph, dim=2, minimization_steps=5200, pos: np.DeviceArray = None):
+    def __init__(self, key, G: nx.Graph, dim=2, minimization_steps=5200, pos: np.DeviceArray = None,
+                 use_neighborlist: bool = False):
         """
         Initialize CMD for a graph
         :param key: jax prng key
@@ -129,6 +130,7 @@ class FullNNMolecularCommunities:
         """
         self.key, self.split = random.split(key)
         self.dim = dim
+        self.use_neighborlist = use_neighborlist
         self.G, self.G_reindex = readjust_graph(G)
         num_nodes = G.number_of_nodes()
         box_size = num_nodes ** (1./dim)
@@ -166,6 +168,11 @@ class FullNNMolecularCommunities:
 
 
     def train(self):
+        max_axis = np.max(self.R)
+        r_cutoff =  max_axis / 8
+        dr_threshold = max_axis / 4
+        neighbor_list_fn = partition.neighbor_list(self.displacement, np.max(self.R)*2, r_cutoff, dr_threshold)
+
 
         def bond_en_fn(dr):
             return self.net1(self.nn_params, dr)
@@ -175,17 +182,23 @@ class FullNNMolecularCommunities:
 
         bond_en = smap.bond(bond_en_fn, self.displacement, self.bonds)
         common_en = smap.pair(common_en_fn, self.displacement)
+        common_en_nbr = smap.pair_neighbor_list(common_en_fn, self.displacement)
+
+        def energy_fn_nbrs(R):
+            return bond_en(R) + common_en_nbr(R)
 
         def energy_fn(R):
             return bond_en(R) + common_en(R)
 
-        R_final, max_energy = self.run_minimization(energy_fn, self.R, self.shift, num_steps=self.minimization_steps)
+        if self.use_neighborlist:
+            R_final, max_energy = self.run_minimization(energy_fn_nbrs, self.R, self.shift, num_steps=self.minimization_steps, nbr_fn=neighbor_list_fn)
+        else:
+            R_final, max_energy = self.run_minimization(energy_fn, self.R, self.shift, num_steps=self.minimization_steps)
         # print(max_energy)
         self.embeddings = R_final
         return R_final, max_energy
 
-
-    def run_minimization(self, energy_fn, R_init, shift, num_steps=5000):
+    def run_minimization(self, energy_fn, R_init, shift, num_steps=5000, nbr_fn=None):
         dt_start = 0.001
         dt_max   = 0.004
         init, apply=minimize.fire_descent(jit(energy_fn),shift,dt_start=dt_start,dt_max=dt_max)
@@ -195,8 +208,23 @@ class FullNNMolecularCommunities:
         def scan_fn(state, i):
             return apply(state), 0.
 
+        @jit
+        def scan_fn_nbrs(state, i):
+            nbrs = state['nbrs']
+            if i % 10 == 1:
+                nbrs = nbr_fn(state.position, state['nbrs'])
+            _, apply = minimize.fire_descent(partial(energy_fn, neighbor=nbrs), shift, dt_start=dt_start, dt_max=dt_max)
+            return {'state': apply(state['state']), 'nbrs': nbrs}, 0
+
+        if self.use_neighborlist:
+            init_nbrs = nbr_fn(R_init)
+
         state = init(R_init)
-        state, _ = lax.scan(scan_fn,state,np.arange(num_steps))
+        if nbr_fn is None:
+            state, _ = lax.scan(scan_fn, state, np.arange(num_steps))
+        else:
+            d_state, _ = lax.scan(scan_fn_nbrs, {'state': state, 'nbrs': init_nbrs}, np.arange(num_steps))
+            state = d_state['state']
 
         return state.position, np.amax(np.abs(-grad(energy_fn)(state.position)))
 
